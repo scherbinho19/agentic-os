@@ -15,6 +15,9 @@ import { renderMarkdown } from "./renderMarkdown";
 import { appendActivity, loadActivity, type ActivityEntry } from "./activityLog";
 import { ChatDrawer } from "./ChatDrawer";
 import { CutterView } from "./CutterView";
+import { DruckView, DruckFehlerGrenze } from "./DruckView";
+import { DruckStatusZeile } from "./DruckStatusZeile";
+import { watchDruckStatus, type DruckStatus } from "./loadDruck";
 
 /* ---------- Helpers ---------- */
 const fmtCompact = (n: number): string => {
@@ -74,9 +77,9 @@ function useTick(ms = 1000): void {
 }
 
 /* ---------- Header (mit Tabs) ---------- */
-type TabId = "OVERVIEW" | "RESEARCH" | "CUTTER";
+type TabId = "OVERVIEW" | "RESEARCH" | "CUTTER" | "DRUCK";
 function Header({ tab, setTab, onRefresh, fetchedAt }: { tab: TabId; setTab: (t: TabId) => void; onRefresh: () => void; fetchedAt: string }): JSX.Element {
-	const TABS: Array<[TabId, string]> = [["OVERVIEW", "ÜBERSICHT"], ["RESEARCH", "RESEARCH"], ["CUTTER", "CUTTER"]];
+	const TABS: Array<[TabId, string]> = [["OVERVIEW", "ÜBERSICHT"], ["RESEARCH", "RESEARCH"], ["CUTTER", "CUTTER"], ["DRUCK", "3D-DRUCK"]];
 	return (
 		<div style={{ padding: "14px 18px 10px" }}>
 			<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -541,6 +544,8 @@ export function App(): JSX.Element {
 	const [tasks, setTasks] = useState<TaskItem[]>([]);
 	const [activity, setActivity] = useState<ActivityEntry[]>([]);
 	const [briefings, setBriefings] = useState<BriefingData>(() => loadBriefings());
+	// 3D-Druck: der Watcher füllt sofort beim Mount, ein Initializer würde die Datei doppelt lesen.
+	const [druck, setDruck] = useState<DruckStatus | null>(null);
 
 	const refreshTokens = useCallback((): void => {
 		void fetchTokenStats(new Date().toISOString()).then(setTokens);
@@ -574,6 +579,9 @@ export function App(): JSX.Element {
 		return () => window.clearInterval(id);
 	}, [reloadBriefings]);
 
+	// 3D-Druck: mtime-Watcher auf status.json, meldet auch ausbleibende Läufe (TTL).
+	useEffect(() => watchDruckStatus(setDruck), []);
+
 	const onToggleTask = useCallback((line: number): void => {
 		toggleTask(line);
 		setTasks(loadTasks());
@@ -601,6 +609,7 @@ export function App(): JSX.Element {
 				{tab === "OVERVIEW" && (
 					<>
 						<BriefingWidget data={briefings} />
+						<DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckStatusZeile status={druck} onOpen={() => setTab("DRUCK")} /></DruckFehlerGrenze>
 							<TokenBurn tokens={tokens} />
 						<StatsRow counts={counts} tokens={tokens} />
 						<SkillGrid skills={skills} />
@@ -611,6 +620,7 @@ export function App(): JSX.Element {
 					</>
 				)}
 				{tab === "RESEARCH" && <ResearchFeed research={research} onRefresh={() => refreshResearch(true)} />}
+				{tab === "DRUCK" && <DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckView status={druck} /></DruckFehlerGrenze>}
 			</div>
 			)}
 			<ChatDrawer />

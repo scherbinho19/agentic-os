@@ -75,6 +75,38 @@ export function sortiert(projekte: Record<string, DruckProjekt>): Array<[string,
 	});
 }
 
+/**
+ * Fängt Render-Fehler des 3D-Druck-Bereichs ab. Ohne diese Grenze würde ein
+ * einziger Throw die gesamte Plugin-Pane weiß schalten, inklusive Tab-Leiste.
+ * Der Aufrufer reicht die Revision als Prop; ein neuer Snapshot löscht den
+ * Fehlerzustand, ohne den Teilbaum zu remounten.
+ */
+export class DruckFehlerGrenze extends React.Component<{ revision: number; children: React.ReactNode }, { fehler: string | null }> {
+	state: { fehler: string | null } = { fehler: null };
+	static getDerivedStateFromError(e: unknown): { fehler: string } {
+		return { fehler: e instanceof Error ? e.message : String(e) };
+	}
+	componentDidCatch(e: unknown, info: React.ErrorInfo): void {
+		console.error("[agentic-os] 3D-Druck-Render fehlgeschlagen:", e, info.componentStack);
+	}
+	componentDidUpdate(prev: { revision: number }): void {
+		// Ein neuer Snapshot darf den Render erneut versuchen. Über key statt hier
+		// würde jeder Lauf den Teilbaum remounten und die Auswahl verlieren.
+		if (this.state.fehler !== null && prev.revision !== this.props.revision) this.setState({ fehler: null });
+	}
+	render(): React.ReactNode {
+		if (this.state.fehler !== null) {
+			return (
+				<div className="featured" style={{ margin: "4px 18px 0", padding: "10px 14px", borderColor: "#3a2414" }}>
+					<span className="ctitle" style={{ color: "var(--accent)" }}>⚠ 3d-druck · anzeige fehlgeschlagen</span>
+					<div className="mono" style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>{this.state.fehler}</div>
+				</div>
+			);
+		}
+		return this.props.children;
+	}
+}
+
 export function DruckBanner({ status }: { status: DruckStatus | null }): JSX.Element | null {
 	const eff = effektivHealth(status);
 	if (eff === "ok") return null;
