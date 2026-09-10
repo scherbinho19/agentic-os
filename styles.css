@@ -2551,3 +2551,31 @@
   font-size: 12px;
 }
 .agentic-os-root .cutter-src-btns { display: flex; gap: 8px; }
+
+/* ── 3D-Druck-Tab ────────────────────────────────────────────────────────── */
+.agentic-os-root .druck-vb { display: flex; align-items: flex-end; gap: 5px; height: 70px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+.agentic-os-root .druck-vb-bar { flex: 1; background: var(--border-2); border-radius: 2px 2px 0 0; transition: height .25s; }
+.agentic-os-root .druck-vb-bar.aktuell { background: var(--accent); box-shadow: 0 0 8px rgba(255,107,26,.4); }
+.agentic-os-root .druck-vb-bar.leer { background: transparent; border: 1px dashed var(--border); box-shadow: none; }
+.agentic-os-root .druck-vb-labels { display: flex; gap: 5px; margin-top: 3px; }
+.agentic-os-root .druck-vb-labels span { flex: 1; text-align: center; font-size: 8px; color: var(--dim); }
+.agentic-os-root .druck-hb { display: flex; align-items: center; gap: 6px; font-size: 9.5px; padding: 2px 0; }
+.agentic-os-root .druck-hb-label { width: 150px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.agentic-os-root .druck-hb-track { flex: 1; height: 9px; background: #161616; border-radius: 2px; overflow: hidden; position: relative; }
+.agentic-os-root .druck-hb-track i { display: block; height: 100%; background: var(--accent); }
+.agentic-os-root .druck-hb-track i.knapp { background: #8a3a10; }
+.agentic-os-root .druck-hb-schwelle { position: absolute; top: -2px; bottom: -2px; border-left: 1px dashed rgba(255,107,26,.6); }
+.agentic-os-root .druck-hb-n { width: 56px; text-align: right; color: var(--muted); }
+.agentic-os-root .druck-spark { display: block; }
+.agentic-os-root .druck-ring { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; }
+.agentic-os-root .druck-ring b { width: 34px; height: 34px; border-radius: 50%; background: #0a0a0a; display: grid; place-items: center; font-size: 10px; color: #f5f5f5; font-weight: 500; }
+.agentic-os-root .druck-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px dashed #1c1c1c; cursor: pointer; font-size: 11px; }
+.agentic-os-root .druck-row:last-child { border-bottom: none; }
+.agentic-os-root .druck-row.sel { background: #120c08; border-left: 2px solid var(--accent); padding-left: 6px; margin-left: -8px; }
+.agentic-os-root .druck-pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--border-2); color: var(--muted); white-space: nowrap; }
+.agentic-os-root .druck-pill.warn { border-color: #3a2414; color: var(--accent); background: #120c08; }
+.agentic-os-root .druck-pill.ok { border-color: #1f3a1f; color: #5fd35f; }
+.agentic-os-root .druck-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border-2); border-radius: 4px; padding: 4px 9px; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: .1em; color: var(--accent); background: transparent; cursor: pointer; text-transform: uppercase; }
+.agentic-os-root .druck-btn:hover { border-color: var(--accent); }
+.agentic-os-root .druck-btn:disabled { opacity: .4; cursor: default; }
+.agentic-os-root .druck-select { background: #0d0d0d; color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 6px; }
