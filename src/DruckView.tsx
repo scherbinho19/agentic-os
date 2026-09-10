@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Icons } from "./icons";
-import { alterMinuten, effektivHealth, MAX_ALTER_MIN, type DruckStatus, type DruckProjekt } from "./loadDruck";
+import { alterMinuten, effektivHealth, MAX_ALTER_MIN, type DruckStatus, type DruckProjekt, type DruckMaterial } from "./loadDruck";
 import { BestandBalken, QuoteRing, Sparkline, WochenBalken } from "./DruckCharts";
 
 /**
@@ -18,7 +18,7 @@ export interface DruckAktionen {
 	laeuft: boolean;
 }
 
-const UNGEPRUEFT = new Set(["gedruckt"]);
+export const UNGEPRUEFT = new Set(["gedruckt"]);
 // wird in Paket C für das Select gebraucht
 const ZUSTAENDE = ["idee", "konstruiert", "gedruckt", "passt", "v2-noetig", "ruht"];
 
@@ -29,14 +29,25 @@ function dauer(min: number | null | undefined): string {
 }
 
 function tageHer(datum: string | null): number | null {
-	if (datum === null || datum === "") return null;
+	// letzter_druck ist laut loadDruck.ts innerhalb eines Projekts NICHT normalisiert:
+	// ein von Hand editiertes status.json kann hier auch eine Zahl oder sonst etwas
+	// tragen, trotz Typ. typeof deckt das ab, nicht nur den deklarierten null-Fall.
+	if (typeof datum !== "string" || datum === "") return null;
 	const t = new Date(datum.slice(0, 10)).getTime();
 	return isFinite(t) ? Math.floor((Date.now() - t) / 86400000) : null;
 }
 
-function tageText(t: number | null): string {
+export function tageText(t: number | null): string {
 	if (t === null) return "unbekannt";
 	return t === 1 ? "1 Tag" : `${t} Tagen`;
+}
+
+/** Materialliste als Text, robust gegen fehlende oder nicht-string Felder in materialien. */
+export function materialText(materialien: DruckMaterial[]): string {
+	const teile = materialien
+		.map((m) => [m.material, m.farbe].filter((x) => typeof x === "string" && x !== "").join(" "))
+		.filter((s) => s !== "");
+	return teile.length > 0 ? teile.join(", ") : "unbekannt";
 }
 
 function pillKlasse(zustand: string | null): string {
@@ -46,7 +57,7 @@ function pillKlasse(zustand: string | null): string {
 }
 
 /** Sortierung wie im Markdown-Dashboard: ungeprüft älteste zuerst, dann der Rest alphabetisch. */
-function sortiert(projekte: Record<string, DruckProjekt>): Array<[string, DruckProjekt, number | null]> {
+export function sortiert(projekte: Record<string, DruckProjekt>): Array<[string, DruckProjekt, number | null]> {
 	// projekte kommt aus status.json. Der Vertrag verspricht Objekte als Werte, ein von
 	// Hand editiertes JSON kann trotzdem { x: null } enthalten. Kaputte Einträge hier
 	// rausfiltern, bevor irgendein Feld auf ihnen gelesen wird.
@@ -76,7 +87,7 @@ export function DruckBanner({ status }: { status: DruckStatus | null }): JSX.Ele
 		<div className="featured" style={{ margin: "4px 18px 0", padding: "10px 14px", borderColor: "#3a2414", display: "flex", flexDirection: "column", gap: 4 }}>
 			<span className="ctitle" style={{ color: "var(--accent)" }}>⚠ 3d-druck · {eff}</span>
 			<span style={{ fontSize: 12, color: "#f5f5f5" }}>{text}</span>
-			{status !== null && status.health.grund !== "" && <span className="mono" style={{ fontSize: 10, color: "var(--muted)" }}>{status.health.grund}</span>}
+			{status !== null && typeof status.health.grund === "string" && status.health.grund !== "" && <span className="mono" style={{ fontSize: 10, color: "var(--muted)" }}>{status.health.grund}</span>}
 			<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>
 				prüfen: <span style={{ color: "var(--text)" }}>launchctl list | grep druck-dashboard</span> · neu starten: <span style={{ color: "var(--text)" }}>launchctl kickstart -k gui/$(id -u)/de.ben.druck-dashboard</span>
 			</span>
@@ -104,7 +115,7 @@ function Hero({ status }: { status: DruckStatus }): JSX.Element {
 						<div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
 							<span className="mono tnum" style={{ fontSize: 34, color: "var(--accent)", fontWeight: 600, lineHeight: 1 }}>{l.laeuft_minuten ?? "?"}</span>
 							<span className="mono small-caps" style={{ fontSize: 9, color: "var(--dim)", letterSpacing: ".16em" }}>minuten</span>
-							<span style={{ fontSize: 12.5, color: "#f5f5f5" }}>{l.materialien.map((m) => `${m.material} ${m.farbe}`).join(", ") || "Material unbekannt"}</span>
+							<span style={{ fontSize: 12.5, color: "#f5f5f5" }}>{materialText(l.materialien)}</span>
 							<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>{l.trays.join(", ") || "-"} · task {l.task_id ?? "?"}</span>
 						</div>
 						{/* Annahme für den Fortschrittsbalken, ein Druck über 6 h klebt bei 100 %. Die echte Restzeit liefert der Tracker nicht. */}
