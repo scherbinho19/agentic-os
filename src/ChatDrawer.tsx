@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, realpathSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { type ChatTab, type TabsState, type ProjectEntry, loadTabs, saveTabs, makeUUID, tabSessionName, loadProjects } from "./loadChatTabs";
@@ -900,6 +900,16 @@ export function ChatDrawer(): JSX.Element {
 	const [commands, setCommands] = useState<SlashCommand[]>([]);
 	const [files, setFiles] = useState<FileEntry[]>([]);
 	const [projects, setProjects] = useState<ProjectEntry[]>([]);
+
+	// Collapse state: when true, drawer is hidden and only a small re-open button shows.
+	const [collapsed, setCollapsed] = useState<boolean>(() => {
+		try { return window.localStorage.getItem(DRAWER_COLLAPSED_KEY) === "1"; }
+		catch (_) { return false; }
+	});
+	const toggleCollapsed = (v: boolean): void => {
+		setCollapsed(v);
+		try { window.localStorage.setItem(DRAWER_COLLAPSED_KEY, v ? "1" : "0"); } catch (_) { /* ignore */ }
+	};
 	const dragStartY = useRef<number>(0);
 	const dragStartHeight = useRef<number>(0);
 
@@ -914,6 +924,35 @@ export function ChatDrawer(): JSX.Element {
 	// Persist tabs state
 	useEffect(() => {
 		saveTabs(tabsState);
+	}, [tabsState]);
+
+	// Externe Öffner (3D-Druck-Tab): ein Terminal im Projektordner anlegen oder aktivieren.
+	// Entscheidung gegen das committete tabsState wie in addTab, deshalb hängt der Effekt an [tabsState].
+	// Pfade werden kanonisiert: der Picker nutzt ~/Documents/Projects, andere den echten
+	// Ordner dahinter, der eine Pfad ist ein Symlink auf den anderen.
+	useEffect(() => {
+		const kanon = (p: string | undefined): string => {
+			if (p === undefined || p === "") return "";
+			try { return realpathSync(p); } catch (_) { return p; }
+		};
+		const onOpen = (ev: Event): void => {
+			const d = (ev as CustomEvent<{ cwd: string; name: string }>).detail;
+			if (d === undefined || typeof d.cwd !== "string" || d.cwd === "") return;
+			if (!existsSync(d.cwd)) { alert(`Ordner fehlt: ${d.cwd}`); return; }
+			const ziel = kanon(d.cwd);
+			const vorhanden = tabsState.tabs.find((t) => kanon(t.cwd) === ziel);
+			if (vorhanden !== undefined) {
+				setTabsState((prev) => ({ ...prev, activeId: vorhanden.id }));
+			} else {
+				if (tabsState.tabs.length >= MAX_TABS) { alert(`Max ${MAX_TABS} Tabs erreicht.`); return; }
+				const neu: ChatTab = { id: makeUUID(), name: d.name || "projekt", type: "claude", workspace: "home", cwd: d.cwd };
+				setTabsState((prev) => ({ tabs: [...prev.tabs, neu], activeId: neu.id }));
+			}
+			setShowPicker(false);
+			toggleCollapsed(false);
+		};
+		window.addEventListener("agentic-os:open-project", onOpen);
+		return () => window.removeEventListener("agentic-os:open-project", onOpen);
 	}, [tabsState]);
 
 	const patchActiveTab = useCallback((patch: Partial<ChatTab>): void => {
@@ -1024,16 +1063,6 @@ export function ChatDrawer(): JSX.Element {
 	};
 
 	const activeTab = tabsState.tabs.find((t) => t.id === tabsState.activeId);
-
-	// Collapse state — when true, drawer is hidden and only a small re-open button shows.
-	const [collapsed, setCollapsed] = useState<boolean>(() => {
-		try { return window.localStorage.getItem(DRAWER_COLLAPSED_KEY) === "1"; }
-		catch (_) { return false; }
-	});
-	const toggleCollapsed = (v: boolean): void => {
-		setCollapsed(v);
-		try { window.localStorage.setItem(DRAWER_COLLAPSED_KEY, v ? "1" : "0"); } catch (_) { /* ignore */ }
-	};
 
 	if (collapsed) {
 		return (
