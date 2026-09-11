@@ -1,6 +1,7 @@
-import { existsSync, readFileSync, statSync } from "fs";
+import { accessSync, constants, existsSync, readFileSync, statSync } from "fs";
+import { spawn } from "child_process";
 import { join } from "path";
-import { vaultRoot } from "./platform";
+import { homeDir, spawnEnv, vaultRoot } from "./platform";
 
 /**
  * Liest 3D-Druck/status.json, die einzige Datenquelle des 3D-Druck-Tabs.
@@ -211,4 +212,99 @@ export function watchDruckStatus(cb: (s: DruckStatus | null) => void, intervalMs
 	tick();
 	const id = window.setInterval(tick, intervalMs);
 	return () => window.clearInterval(id);
+}
+
+/**
+ * Der Interpreter mit Festplattenvollzugriff. Nie ein Tilde-String: child_process.spawn
+ * startet keine Shell und expandiert ~ nicht. Der aufgelöste Pfad steht in jeder Meldung.
+ */
+export function pythonPfad(): { pfad: string; ok: boolean } {
+	const pfad = join(homeDir, ".local", "bin", "python3.12");
+	try {
+		accessSync(pfad, constants.X_OK);
+		return { pfad, ok: true };
+	} catch (_) {
+		return { pfad, ok: false };
+	}
+}
+
+export function druckSkriptPfad(): string {
+	const root = vaultRoot();
+	return root.length > 0 ? join(root, "scripts", "druck_status.py") : "";
+}
+
+let cliInFlight = false;
+export function cliLaeuft(): boolean { return cliInFlight; }
+
+/**
+ * Spawnt die Python-CLI. Erfolg: Revision aus stdout. Fehler: letzte stderr-Zeile.
+ * Reentrancy-geschützt wie pullBriefings: ein zweiter Aufruf während eines laufenden
+ * wird abgewiesen, nicht gestapelt. Timeout 30 s.
+ * close wartet auf alle stdio-Streams. Die CLI darf keinen Enkelprozess mit geerbtem
+ * stdout hinterlassen (druck_status.py nutzt capture_output), sonst läuft jeder Klick
+ * in die Zeitüberschreitung.
+ * Beim Plugin-Unload wird bewusst nicht gekillt: eine halb ausgeführte Mutation
+ * abzuschießen wäre schlechter, Lock und os.replace decken den Fall ab.
+ */
+export function runDruckCli(args: string[]): Promise<{ ok: boolean; revision?: number; error?: string }> {
+	return new Promise((resolve) => {
+		if (cliInFlight) { resolve({ ok: false, error: "Es läuft schon ein Befehl." }); return; }
+		const py = pythonPfad();
+		if (!py.ok) { resolve({ ok: false, error: `Python fehlt oder ist nicht ausführbar: ${py.pfad}` }); return; }
+		const skript = druckSkriptPfad();
+		if (skript.length === 0 || !existsSync(skript)) { resolve({ ok: false, error: `Skript fehlt: ${skript || "(kein Vault)"}` }); return; }
+
+		cliInFlight = true;
+		let out = "", err = "", settled = false;
+		const finish = (r: { ok: boolean; revision?: number; error?: string }): void => {
+			if (settled) return;
+			settled = true;
+			cliInFlight = false;
+			resolve(r);
+		};
+		let child: ReturnType<typeof spawn>;
+		try {
+			// DRUCK_VAULT ist der Test-Seam der Python-Skripte; geerbt würde Python still
+			// in einen fremden Vault schreiben, während das Plugin den echten liest.
+			const env = spawnEnv();
+			delete env.DRUCK_VAULT;
+			child = spawn(py.pfad, [skript, ...args], { env, windowsHide: true });
+		} catch (e) {
+			finish({ ok: false, error: String(e) });
+			return;
+		}
+		const killTimer = setTimeout(() => { try { child.kill(); } catch (_) { /* */ } finish({ ok: false, error: "Zeitüberschreitung nach 30 s, der Stand folgt spätestens mit dem nächsten Lauf." }); }, 30000);
+		child.stdout?.on("data", (c: Buffer) => { out += c.toString(); });
+		child.stderr?.on("data", (c: Buffer) => { err += c.toString(); });
+		child.on("error", (e) => { clearTimeout(killTimer); finish({ ok: false, error: String(e) }); });
+		child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
+			clearTimeout(killTimer);
+			if (code === 0) {
+				// Erfolg ohne Zahl auf stdout: die Pipe wurde vom Plugin vorher geschlossen
+				// (Vertrag im Schema). Dann gilt kein Fehler, nur keine Revision zum Warten.
+				const rev = parseInt(out.trim(), 10);
+				finish(Number.isSafeInteger(rev) ? { ok: true, revision: rev } : { ok: true });
+			} else {
+				finish({ ok: false, error: (err.split("\n").filter((l) => l.trim() !== "").pop() ?? `Exit ${code ?? signal ?? "?"}`).trim() });
+			}
+		});
+	});
+}
+
+/**
+ * Pollt status.json, bis revision >= n. Damit ist ein Klick erst fertig, wenn der Stand ihn
+ * enthält. Der Aufrufer prüft danach health. Beim Timeout wird der letzte gelesene Stand
+ * zurückgegeben, auch wenn er die Revision nicht erreicht.
+ */
+export function warteAufRevision(n: number, timeoutMs = 10000): Promise<DruckStatus | null> {
+	return new Promise((resolve) => {
+		const t0 = Date.now();
+		const tick = (): void => {
+			const s = loadDruckStatus();
+			if (s !== null && s.revision >= n) { resolve(s); return; }
+			if (Date.now() - t0 > timeoutMs) { resolve(s); return; }
+			window.setTimeout(tick, 250);
+		};
+		tick();
+	});
 }
