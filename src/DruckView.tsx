@@ -28,6 +28,11 @@ function dauer(min: number | null | undefined): string {
 	return `${Math.floor(min / 60)} h ${min % 60} min`;
 }
 
+/** Zahl aus unbestätigten Feldern, robust gegen Strings, null, bool und NaN. */
+function zahl(v: unknown): number {
+	return Number.isFinite(v as number) ? (v as number) : 0;
+}
+
 function tageHer(datum: string | null): number | null {
 	// letzter_druck ist laut loadDruck.ts innerhalb eines Projekts NICHT normalisiert:
 	// ein von Hand editiertes status.json kann hier auch eine Zahl oder sonst etwas
@@ -152,7 +157,7 @@ function Hero({ status }: { status: DruckStatus }): JSX.Element {
 						</div>
 						{/* Annahme für den Fortschrittsbalken, ein Druck über 6 h klebt bei 100 %. Die echte Restzeit liefert der Tracker nicht. */}
 						<div className="hatch" style={{ position: "relative", height: 10, borderRadius: 3, border: "1px solid #232323", overflow: "hidden", marginTop: 10 }}>
-							<div className="burn-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, ((l.laeuft_minuten ?? 0) / 360) * 100)}%` }} />
+							<div className="burn-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (zahl(l.laeuft_minuten) / 360) * 100)}%` }} />
 						</div>
 						<div className="mono" style={{ fontSize: 9.5, color: "var(--dim)", marginTop: 6 }}>
 							{l.projekt_hinweis}{l.unbestaetigt === true ? " · UNBESTÄTIGT, siehe Warnung" : ""}{l.uebernommen === true ? ` · übernommener Wert, ${l.uebernommen_seit_minuten ?? "?"} min alt` : ""}
@@ -180,7 +185,7 @@ function Kennzahlen({ status }: { status: DruckStatus }): JSX.Element {
 	// "drucke" und "verbraucht" müssen dieselbe Grundmenge zählen wie die Python-Serien
 	// laut Vertrag: nur FINISH. Ein FAILED-Druck zählt sonst mit, gramm aber nicht.
 	const fertigeDrucke = status.drucke.filter((d) => d.status === "FINISH");
-	const kg = (fertigeDrucke.reduce((s, d) => s + d.gesamt_g, 0) / 1000).toFixed(1);
+	const kg = (fertigeDrucke.reduce((s, d) => s + zahl(d.gesamt_g), 0) / 1000).toFixed(1);
 	return (
 		<div style={{ margin: "12px 18px 0", display: "grid", gridTemplateColumns: "repeat(4,1fr) auto", gap: 10, alignItems: "stretch" }}>
 			<Stat value={String(ungeprueft)} label="ungeprüft" accent />
@@ -201,13 +206,17 @@ function ProjektListe({ status, sel, onSel }: { status: DruckStatus; sel: string
 	return (
 		<div className="featured" style={{ padding: "12px 14px" }}>
 			<span className="ctitle" style={{ marginBottom: 8 }}>◫ projekte · {Object.keys(status.projekte).length}</span>
-			{sortiert(status.projekte).map(([name, p, tage]) => (
-				<div key={name} className={"druck-row" + (sel === name ? " sel" : "")} onClick={() => onSel(name)}>
-					<span className="mono" style={{ flex: 1, color: "#f5f5f5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-					<Sparkline wochen={p.wochen} />
-					<span className={pillKlasse(p.zustand)}>{p.zustand ?? "fehlt"}{p.zustand !== null && UNGEPRUEFT.has(p.zustand) && tage !== null ? ` ${tage}d` : ""}</span>
-				</div>
-			))}
+			{sortiert(status.projekte).map(([name, p, tage]) => {
+				// p.zustand ist innerhalb eines Projekts nicht normalisiert, siehe ProjektDetail.
+				const zustand = typeof p.zustand === "string" ? p.zustand : null;
+				return (
+					<div key={name} className={"druck-row" + (sel === name ? " sel" : "")} onClick={() => onSel(name)}>
+						<span className="mono" style={{ flex: 1, color: "#f5f5f5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+						<Sparkline wochen={p.wochen} />
+						<span className={pillKlasse(zustand)}>{zustand ?? "fehlt"}{zustand !== null && UNGEPRUEFT.has(zustand) && tage !== null ? ` ${tage}d` : ""}</span>
+					</div>
+				);
+			})}
 		</div>
 	);
 }
@@ -218,38 +227,39 @@ function ProjektDetail({ status, name, aktionen }: { status: DruckStatus; name: 
 	}
 	const p = status.projekte[name] as DruckProjekt;
 	// Felder INNERHALB eines Projekts sind laut loadDruck.ts nicht normalisiert,
-	// deshalb hier defensiv gegen fehlende Werte in der Rohdatei.
-	const notiz = p.notiz ?? "";
-	const pfad = p.pfad ?? "";
-	const stand = p.stand ?? "";
+	// deshalb hier defensiv gegen fehlende oder falsch typisierte Werte in der Rohdatei.
+	const notiz = typeof p.notiz === "string" ? p.notiz : "";
+	const pfad = typeof p.pfad === "string" ? p.pfad : "";
+	const stand = typeof p.stand === "string" ? p.stand : "";
+	const zustand = typeof p.zustand === "string" ? p.zustand : null;
 	const letzterDruck = p.letzter_druck ?? null;
-	const druckeAnzahl = p.drucke ?? 0;
+	const druckeAnzahl = zahl(p.drucke);
 	const drucke = status.drucke.filter((d) => d.projekt === name).reverse();
 	return (
 		<div className="featured" style={{ padding: "12px 14px", position: "relative" }}>
 			<span className="bracket tl" /><span className="bracket tr" /><span className="bracket bl" /><span className="bracket br" />
 			<div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
 				<span className="mono" style={{ fontSize: 14, color: "#f5f5f5", fontWeight: 600 }}>{name}</span>
-				<span className={pillKlasse(p.zustand)}>{p.zustand ?? "fehlt"}</span>
+				<span className={pillKlasse(zustand)}>{zustand ?? "fehlt"}</span>
 				<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>stand {stand || "-"}</span>
 			</div>
 			<div className="mono" style={{ fontSize: 11, color: "var(--muted)", marginBottom: 6 }}>
-				{druckeAnzahl} {druckeAnzahl === 1 ? "Druck" : "Drucke"} · {p.gramm} g · zuletzt {letzterDruck ?? "-"}
-				{p.zustand !== null && UNGEPRUEFT.has(p.zustand) ? ` · seit ${tageText(tageHer(letzterDruck))} ungeprüft` : ""}
+				{druckeAnzahl} {druckeAnzahl === 1 ? "Druck" : "Drucke"} · {zahl(p.gramm)} g · zuletzt {letzterDruck ?? "-"}
+				{zustand !== null && UNGEPRUEFT.has(zustand) ? ` · seit ${tageText(tageHer(letzterDruck))} ungeprüft` : ""}
 			</div>
 			{notiz !== "" && <div style={{ fontSize: 11.5, color: "var(--text)", marginBottom: 8, lineHeight: 1.5 }}>{notiz}</div>}
 			{drucke.slice(0, 6).map((d) => (
 				<div key={d.task_id} className="druck-row" style={{ cursor: "default" }}>
-					<span className="mono" style={{ flex: 1, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.print_name || "-"}</span>
-					<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>{(d.zeitpunkt ?? "").slice(0, 10) || "-"} · {d.gesamt_g} g · {dauer(d.dauer_min)}</span>
+					<span className="mono" style={{ flex: 1, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(typeof d.print_name === "string" ? d.print_name : "") || "-"}</span>
+					<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>{(d.zeitpunkt ?? "").slice(0, 10) || "-"} · {zahl(d.gesamt_g)} g · {dauer(zahl(d.dauer_min))}</span>
 				</div>
 			))}
 			{aktionen !== undefined && (
 				<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
 					<button className="druck-btn" disabled={aktionen.laeuft || pfad === ""} onClick={() => aktionen.terminal(name, pfad)}>▸ terminal hier</button>
-					<button className="druck-btn" disabled={aktionen.laeuft || p.zustand === "passt"} onClick={() => void aktionen.status(name, "passt")}>✓ passt</button>
-					<button className="druck-btn" disabled={aktionen.laeuft || p.zustand === "v2-noetig"} onClick={() => void aktionen.status(name, "v2-noetig")}>✗ v2 nötig</button>
-					<button className="druck-btn" disabled={aktionen.laeuft || p.zustand === "ruht"} onClick={() => void aktionen.status(name, "ruht")}>◌ ruht</button>
+					<button className="druck-btn" disabled={aktionen.laeuft || zustand === "passt"} onClick={() => void aktionen.status(name, "passt")}>✓ passt</button>
+					<button className="druck-btn" disabled={aktionen.laeuft || zustand === "v2-noetig"} onClick={() => void aktionen.status(name, "v2-noetig")}>✗ v2 nötig</button>
+					<button className="druck-btn" disabled={aktionen.laeuft || zustand === "ruht"} onClick={() => void aktionen.status(name, "ruht")}>◌ ruht</button>
 					<button className="druck-btn" disabled={aktionen.laeuft} onClick={() => aktionen.claude(name, p)}>claude fragen</button>
 				</div>
 			)}
@@ -268,7 +278,7 @@ function ZuletztFertig({ status, aktionen }: { status: DruckStatus; aktionen?: D
 				return (
 					<div key={d.task_id} className="druck-row" style={{ cursor: "default" }}>
 						<span className="mono" style={{ fontSize: 10, color: "var(--dim)", flex: "0 0 96px" }}>{(d.zeitpunkt ?? "").slice(0, 16) || "-"}</span>
-						<span className="mono" style={{ flex: 1, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.print_name || "ohne Namen"}</span>
+						<span className="mono" style={{ flex: 1, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(typeof d.print_name === "string" ? d.print_name : "") || "ohne Namen"}</span>
 						{offen && aktionen !== undefined ? (
 							<select className="druck-select" defaultValue="" disabled={aktionen.laeuft} onChange={(e) => { const v = e.target.value; if (v !== "__") void aktionen.zuordnen(d.task_id, v === "__kein" ? "" : v); }}>
 								<option value="__">zuordnen …</option>
@@ -278,7 +288,7 @@ function ZuletztFertig({ status, aktionen }: { status: DruckStatus; aktionen?: D
 						) : (
 							<span className="mono" style={{ fontSize: 10, color: d.projekt !== null ? "var(--accent)" : "var(--dim)" }}>{d.projekt ?? d.quelle}</span>
 						)}
-						<span className="mono tnum" style={{ fontSize: 10, color: "var(--muted)", flex: "0 0 60px", textAlign: "right" }}>{d.gesamt_g} g</span>
+						<span className="mono tnum" style={{ fontSize: 10, color: "var(--muted)", flex: "0 0 60px", textAlign: "right" }}>{zahl(d.gesamt_g)} g</span>
 					</div>
 				);
 			})}
@@ -300,17 +310,26 @@ function Aufklappbar({ titel, children }: { titel: string; children: React.React
 	);
 }
 
+/** Refresh-Knopf für die Fälle ohne Stand oder mit unverlässlichem Stand. Ohne aktionen leer. */
+function RefreshKnopf({ aktionen }: { aktionen?: DruckAktionen }): JSX.Element | null {
+	if (aktionen === undefined) return null;
+	return (
+		<div style={{ margin: "10px 18px" }}>
+			<button className="druck-btn" disabled={aktionen.laeuft} onClick={() => void aktionen.refresh()}>{aktionen.laeuft ? "läuft …" : "↻ jetzt erzeugen"}</button>
+		</div>
+	);
+}
+
 export function DruckView({ status, aktionen }: { status: DruckStatus | null; aktionen?: DruckAktionen }): JSX.Element {
 	const [sel, setSel] = useState<string | null>(null);
-	if (status === null) {
+	// Vertrag "Banner statt Daten": bei fehlendem oder unverlässlichem Stand (health
+	// error) keine Kennzahlen und keinen Hero zeigen, die als echte Werte durchgehen
+	// könnten. stale zeigt weiterhin alles, nur mit Banner oben.
+	if (status === null || effektivHealth(status) === "error") {
 		return (
 			<>
-				<DruckBanner status={null} />
-				{aktionen !== undefined && (
-					<div style={{ margin: "10px 18px" }}>
-						<button className="druck-btn" disabled={aktionen.laeuft} onClick={() => void aktionen.refresh()}>{aktionen.laeuft ? "läuft …" : "↻ jetzt erzeugen"}</button>
-					</div>
-				)}
+				<DruckBanner status={status} />
+				<RefreshKnopf aktionen={aktionen} />
 			</>
 		);
 	}

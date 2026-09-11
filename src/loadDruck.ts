@@ -110,22 +110,27 @@ export function normalisiereDruckStatus(raw: unknown): DruckStatus | null {
 	// Python liefert laut Vertrag alle Felder, aber ein von Hand editiertes oder halb geschriebenes
 	// JSON nicht. Der Cast zu DruckStatus darf keine Lüge sein, also werden Listen hier aufgefüllt;
 	// die View verlässt sich auf den Typ. projekte wird bewusst NICHT aufgefüllt, siehe oben.
-	const liste = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
-	r.drucke = liste<DruckEreignis>(r.drucke);
-	r.bestand = liste<DruckBestand>(r.bestand);
-	r.befunde = liste<string>(r.befunde);
-	r.backlog = liste<string>(r.backlog);
+	// Ein Array allein reicht nicht: Codex-Review fand `bestand: [null]`, das an der
+	// Lesestelle (b.knapp) wirft. Deshalb zusätzlich jedes Element filtern, nicht nur
+	// den Container. Objektlisten behalten nur echte Objekte, Stringlisten nur Strings.
+	const objektListe = <T>(v: unknown): T[] =>
+		Array.isArray(v) ? (v.filter((x) => typeof x === "object" && x !== null && !Array.isArray(x)) as T[]) : [];
+	const stringListe = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+	r.drucke = objektListe<DruckEreignis>(r.drucke);
+	r.bestand = objektListe<DruckBestand>(r.bestand);
+	r.befunde = stringListe(r.befunde);
+	r.backlog = stringListe(r.backlog);
 	const serien = r.serien as { wochen?: unknown; quote?: unknown } | undefined;
 	const q = serien?.quote as { fertig?: unknown; fehlgeschlagen?: unknown } | undefined;
 	const quote =
 		q !== null && typeof q === "object" && Number.isFinite(q?.fertig) && Number.isFinite(q?.fehlgeschlagen)
 			? (q as { fertig: number; fehlgeschlagen: number })
 			: { fertig: 0, fehlgeschlagen: 0 };
-	r.serien = { wochen: liste<{ jahr: number; kw: number; gramm: number }>(serien?.wochen), quote };
+	r.serien = { wochen: objektListe<{ jahr: number; kw: number; gramm: number }>(serien?.wochen), quote };
 	if (r.laufend !== null && r.laufend !== undefined && typeof r.laufend === "object" && !Array.isArray(r.laufend)) {
 		const l = r.laufend as DruckLaufend & Record<string, unknown>;
-		l.materialien = liste<DruckMaterial>(l.materialien);
-		l.trays = liste<string>(l.trays);
+		l.materialien = objektListe<DruckMaterial>(l.materialien);
+		l.trays = stringListe(l.trays);
 		r.laufend = l;
 	} else {
 		r.laufend = null;
@@ -147,12 +152,22 @@ export function loadDruckStatus(): DruckStatus | null {
 	}
 }
 
-/** Alter von generated_at in Minuten, oder null wenn unlesbar. */
+/** Toleranz für einen generated_at-Zeitstempel in der Zukunft, in Minuten. */
+export const UHR_TOLERANZ_MIN = 5;
+
+/**
+ * Alter von generated_at in Minuten, oder null wenn unlesbar oder wenn der Stand
+ * mehr als UHR_TOLERANZ_MIN Minuten in der Zukunft liegt. Python und Plugin laufen
+ * auf derselben Uhr; mehr als fünf Minuten Vorsprung sind ein Uhr-Sprung oder eine
+ * Handänderung, kein frischer Stand.
+ */
 export function alterMinuten(status: DruckStatus | null): number | null {
 	if (status === null) return null;
 	const t = new Date(status.generated_at).getTime();
 	if (!isFinite(t)) return null;
-	return Math.max(0, Math.floor((Date.now() - t) / 60000));
+	const diffMin = (Date.now() - t) / 60000;
+	if (diffMin < -UHR_TOLERANZ_MIN) return null;
+	return Math.max(0, Math.floor(diffMin));
 }
 
 /**
