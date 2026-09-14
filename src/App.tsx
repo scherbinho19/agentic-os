@@ -1,6 +1,8 @@
 import * as React from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { join } from "path";
 import { Notice } from "obsidian";
+import { vaultRoot } from "./platform";
 import { Icons } from "./icons";
 import { sendMessage } from "./ptySession";
 import { loadTabs, tabSessionName } from "./loadChatTabs";
@@ -15,9 +17,9 @@ import { renderMarkdown } from "./renderMarkdown";
 import { appendActivity, loadActivity, type ActivityEntry } from "./activityLog";
 import { ChatDrawer } from "./ChatDrawer";
 import { CutterView } from "./CutterView";
-import { DruckView, DruckFehlerGrenze } from "./DruckView";
+import { DruckView, DruckFehlerGrenze, type DruckAktionen } from "./DruckView";
 import { DruckStatusZeile } from "./DruckStatusZeile";
-import { watchDruckStatus, type DruckStatus } from "./loadDruck";
+import { loadDruckStatus, watchDruckStatus, runDruckCli, warteAufRevision, effektivHealth, type DruckStatus } from "./loadDruck";
 
 /* ---------- Helpers ---------- */
 const fmtCompact = (n: number): string => {
@@ -582,6 +584,46 @@ export function App(): JSX.Element {
 	// 3D-Druck: mtime-Watcher auf status.json, meldet auch ausbleibende Läufe (TTL).
 	useEffect(() => watchDruckStatus(setDruck), []);
 
+	// 3D-Druck-Aktionen: eigenes Busy-Flag. cliInFlight in runDruckCli wird zwar
+	// synchron im Promise-Executor gesetzt, deckt aber nur den Python-Aufruf selbst
+	// ab. druckLaeuft bleibt zusätzlich während der warteAufRevision-Phase an, in
+	// der cliInFlight schon wieder false ist. Eintrittsguard per Ref statt State,
+	// weil State in einem useCallback mit leeren Deps sonst stale wäre.
+	const [druckLaeuft, setDruckLaeuft] = useState<boolean>(false);
+	const druckLaeuftRef = useRef<boolean>(false);
+	const druckCli = useCallback(async (args: string[], erfolg: string): Promise<void> => {
+		if (druckLaeuftRef.current) return;
+		druckLaeuftRef.current = true;
+		setDruckLaeuft(true);
+		try {
+			const r = await runDruckCli(args);
+			if (!r.ok) { new Notice(`3D-Druck: ${r.error ?? "unbekannter Fehler"}`, 6000); return; }
+			const s = r.revision !== undefined ? await warteAufRevision(r.revision) : loadDruckStatus();
+			if (s !== null) setDruck(s);
+			if (r.revision !== undefined && (s === null || s.revision < r.revision)) new Notice("3D-Druck: Stand noch nicht übernommen, lädt nach.", 4000);
+			else if (effektivHealth(s) === "error") new Notice("3D-Druck: Stand meldet einen Fehler, siehe Tab.", 6000);
+			else if (erfolg !== "") new Notice(erfolg, 2500);
+		} finally {
+			druckLaeuftRef.current = false;
+			setDruckLaeuft(false);
+		}
+	}, []);
+	const druckAktionen: DruckAktionen = {
+		laeuft: druckLaeuft,
+		refresh: () => druckCli(["--refresh"], "3D-Druck: Stand erzeugt."),
+		status: (name, zustand) => druckCli(["--set-status", name, zustand], `3D-Druck: ${name} → ${zustand}`),
+		zuordnen: (taskId, projekt) => druckCli(["--zuordnen", taskId, projekt], projekt === "" ? "3D-Druck: kein Projekt zugeordnet" : `3D-Druck: Druck → ${projekt}`),
+		terminal: (name, pfad) => { window.dispatchEvent(new CustomEvent("agentic-os:open-project", { detail: { cwd: pfad, name } })); },
+		claude: (name, p) => {
+			// Nach "terminal hier" steht die aktive Session im Projektordner, nicht im
+			// Vault. Relative @-Pfade würden dort ins Leere zeigen, deshalb absolut aus vaultRoot().
+			const root = vaultRoot();
+			if (root === "") { new Notice("3D-Druck: kein Vault-Pfad, Prompt nicht gesendet.", 4000); return; }
+			const d = join(root, "3D-Druck");
+			runCommand(`Lies @${join(d, "status.json")} und @${join(d, "Projekte.md")}. Projekt ${name} steht auf "${typeof p.zustand === "string" ? p.zustand : "unbekannt"}"${typeof p.notiz === "string" && p.notiz !== "" ? `, Notiz: ${p.notiz}` : ""}. Hilf mir, den nächsten Schritt zu machen. Frag zuerst, was ich vorhabe.`);
+		},
+	};
+
 	const onToggleTask = useCallback((line: number): void => {
 		toggleTask(line);
 		setTasks(loadTasks());
@@ -595,7 +637,8 @@ export function App(): JSX.Element {
 		setActivity(loadActivity());
 		setBriefings(loadBriefings());
 		pullBriefings((changed) => { if (changed) reloadBriefings(); });
-	}, [refreshTokens, refreshResearch, reloadBriefings]);
+		void druckCli(["--refresh"], "");
+	}, [refreshTokens, refreshResearch, reloadBriefings, druckCli]);
 
 	const counts = { skills: skills.length, agents: agents.length, commands: commands.filter((c) => c.source !== "builtin").length };
 
@@ -620,7 +663,7 @@ export function App(): JSX.Element {
 					</>
 				)}
 				{tab === "RESEARCH" && <ResearchFeed research={research} onRefresh={() => refreshResearch(true)} />}
-				{tab === "DRUCK" && <DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckView status={druck} /></DruckFehlerGrenze>}
+				{tab === "DRUCK" && <DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckView status={druck} aktionen={druckAktionen} /></DruckFehlerGrenze>}
 			</div>
 			)}
 			<ChatDrawer />

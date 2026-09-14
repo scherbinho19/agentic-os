@@ -280,7 +280,7 @@ function ZuletztFertig({ status, aktionen }: { status: DruckStatus; aktionen?: D
 						<span className="mono" style={{ fontSize: 10, color: "var(--dim)", flex: "0 0 96px" }}>{(d.zeitpunkt ?? "").slice(0, 16) || "-"}</span>
 						<span className="mono" style={{ flex: 1, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(typeof d.print_name === "string" ? d.print_name : "") || "ohne Namen"}</span>
 						{offen && aktionen !== undefined ? (
-							<select className="druck-select" defaultValue="" disabled={aktionen.laeuft} onChange={(e) => { const v = e.target.value; if (v !== "__") void aktionen.zuordnen(d.task_id, v === "__kein" ? "" : v); }}>
+							<select className="druck-select" value="__" disabled={aktionen.laeuft} onChange={(e) => { const v = e.target.value; if (v !== "__") void aktionen.zuordnen(d.task_id, v === "__kein" ? "" : v); }}>
 								<option value="__">zuordnen …</option>
 								{projekte.map((p) => <option key={p} value={p}>{p}</option>)}
 								<option value="__kein">kein Projekt</option>
