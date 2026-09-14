@@ -275,7 +275,7 @@ function ZuletztFertig({ status, aktionen }: { status: DruckStatus; aktionen?: D
 			<span className="ctitle" style={{ marginBottom: 8 }}>≡ zuletzt fertig</span>
 			{fertig.map((d) => {
 				const zuordenbar = d.quelle === "offen" || d.quelle === "mehrdeutig" || d.quelle === "zuordnung";
-				const platzhalter = d.quelle === "zuordnung" ? (d.projekt ?? "kein Projekt") : "zuordnen …";
+				const platzhalter = d.quelle === "zuordnung" ? `→ ${d.projekt || "kein Projekt"}` : "zuordnen …";
 				return (
 					<div key={d.task_id} className="druck-row" style={{ cursor: "default" }}>
 						<span className="mono" style={{ fontSize: 10, color: "var(--dim)", flex: "0 0 96px" }}>{(d.zeitpunkt ?? "").slice(0, 16) || "-"}</span>
@@ -325,7 +325,7 @@ export function DruckView({ status, aktionen }: { status: DruckStatus | null; ak
 	const [sel, setSel] = useState<string | null>(null);
 	// Vertrag "Banner statt Daten": bei fehlendem oder unverlässlichem Stand (health
 	// error) keine Kennzahlen und keinen Hero zeigen, die als echte Werte durchgehen
-	// könnten. stale zeigt weiterhin alles, nur mit Banner oben.
+	// könnten. stale zeigt weiterhin alles, mit Banner und Refresh-Knopf oben.
 	if (status === null || effektivHealth(status) === "error") {
 		return (
 			<>
@@ -340,6 +340,7 @@ export function DruckView({ status, aktionen }: { status: DruckStatus | null; ak
 	return (
 		<>
 			<DruckBanner status={status} />
+			{effektivHealth(status) === "stale" && <RefreshKnopf aktionen={aktionen} />}
 			<Hero status={status} />
 			<Kennzahlen status={status} />
 			<div style={{ margin: "10px 18px 0", display: "grid", gridTemplateColumns: "240px 1fr", gap: 10 }}>
