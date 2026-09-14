@@ -927,7 +927,10 @@ export function ChatDrawer(): JSX.Element {
 	}, [tabsState]);
 
 	// Externe Öffner (3D-Druck-Tab): ein Terminal im Projektordner anlegen oder aktivieren.
-	// Entscheidung gegen das committete tabsState wie in addTab, deshalb hängt der Effekt an [tabsState].
+	// Dedup, Limit und Anhängen laufen in EINEM funktionalen setTabsState, damit zwei Events
+	// vor dem nächsten Commit nicht beide durchkommen. Der Alert im Updater ist bewusst: React
+	// führt ihn hier genau einmal aus (kein StrictMode im Baum, der Zweig gibt prev zurück und
+	// löst keinen Re-Render aus).
 	// Pfade werden kanonisiert: der Picker nutzt ~/Documents/Projects, andere den echten
 	// Ordner dahinter, der eine Pfad ist ein Symlink auf den anderen.
 	useEffect(() => {
@@ -940,20 +943,24 @@ export function ChatDrawer(): JSX.Element {
 			if (d === undefined || typeof d.cwd !== "string" || d.cwd === "") return;
 			if (!existsSync(d.cwd)) { alert(`Ordner fehlt: ${d.cwd}`); return; }
 			const ziel = kanon(d.cwd);
-			const vorhanden = tabsState.tabs.find((t) => kanon(t.cwd) === ziel);
-			if (vorhanden !== undefined) {
-				setTabsState((prev) => ({ ...prev, activeId: vorhanden.id }));
-			} else {
-				if (tabsState.tabs.length >= MAX_TABS) { alert(`Max ${MAX_TABS} Tabs erreicht.`); return; }
+			setTabsState((prev) => {
+				const vorhanden = prev.tabs.find((t) => kanon(t.cwd) === ziel);
+				if (vorhanden !== undefined) return { ...prev, activeId: vorhanden.id };
+				if (prev.tabs.length >= MAX_TABS) {
+					alert(`Max ${MAX_TABS} Tabs erreicht.`);
+					return prev;
+				}
 				const neu: ChatTab = { id: makeUUID(), name: d.name || "projekt", type: "claude", workspace: "home", cwd: d.cwd };
-				setTabsState((prev) => ({ tabs: [...prev.tabs, neu], activeId: neu.id }));
-			}
+				return { tabs: [...prev.tabs, neu], activeId: neu.id };
+			});
 			setShowPicker(false);
 			toggleCollapsed(false);
 		};
 		window.addEventListener("agentic-os:open-project", onOpen);
 		return () => window.removeEventListener("agentic-os:open-project", onOpen);
-	}, [tabsState]);
+		// toggleCollapsed wird pro Render neu erzeugt, ruft aber nur stabile Setter und localStorage.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	const patchActiveTab = useCallback((patch: Partial<ChatTab>): void => {
 		setTabsState((prev) => {
