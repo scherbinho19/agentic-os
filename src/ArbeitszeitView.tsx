@@ -143,7 +143,7 @@ function Kennzahlen({ status }: { status: ZeitStatus }): JSX.Element {
 	const m = status.monat, s = status.saldo, u = status.urlaub;
 	const noetig = m.stunden_pro_tag_noetig;
 	return (
-		<div style={{ margin: "12px 18px 0", display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+		<div style={{ margin: "12px 18px 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
 			<Stat value={`${fmtStunden(m.ist)} / ${fmtStunden(m.soll, 0)}`} label={`stunden ${monatKurz(m.monat)}`} accent />
 			{m.ueberstunden > 0
 				? <Stat value={`+${fmtStunden(m.ueberstunden)} h`} label="überstunden" accent />
@@ -157,13 +157,16 @@ function Kennzahlen({ status }: { status: ZeitStatus }): JSX.Element {
 }
 
 function OffeneTage({ status, onSpringe }: { status: ZeitStatus; onSpringe: (datum: string) => void }): JSX.Element | null {
-	if (status.unvollstaendig.length === 0) return null;
+	// unvollstaendig ist eine ungeprüfte String-Liste. Ein leerer oder mit "-" beginnender
+	// Wert würde bis zur CLI durchgereicht, wo argparse ihn als Option liest.
+	const tage = status.unvollstaendig.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+	if (tage.length === 0) return null;
 	return (
 		<div className="featured" style={{ margin: "10px 18px 0", padding: "10px 14px", borderColor: "#3a2414" }}>
-			<span className="ctitle" style={{ color: "var(--accent)" }}>⚠ offene tage · {status.unvollstaendig.length}</span>
+			<span className="ctitle" style={{ color: "var(--accent)" }}>⚠ offene tage · {tage.length}</span>
 			<div style={{ fontSize: 12, color: "#f5f5f5", marginTop: 4 }}>Diese Tage haben kein Ende und zählen nicht. Klick öffnet den Tag zum Nachtragen.</div>
 			<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-				{status.unvollstaendig.map((d) => <button key={d} className="zeit-btn" onClick={() => onSpringe(d)}>{d}</button>)}
+				{tage.map((d) => <button key={d} className="zeit-btn" onClick={() => onSpringe(d)}>{d}</button>)}
 			</div>
 		</div>
 	);
@@ -193,8 +196,8 @@ function TagEditor({ datum, tag, aktionen, onClose }: { datum: string; tag: Zeit
 			</label>
 			{felder.map((label, i) => (
 				<label key={label} className="mono zeit-feld">{label}
-					{/* step 300: Bens Tabellen enthalten Zeiten außerhalb des Viertelstundenrasters (Nachtrag 1). */}
-					<input type="time" step={300} className="zeit-time" value={zeiten[i]} disabled={busy || art !== "arbeit"} onChange={(e) => setZeit(i, e.target.value)} />
+					{/* step 60: minutengenau, Bens Tabellen enthalten Zeiten außerhalb jedes Rasters (Nachtrag 1); der Browser-Default wäre auch 60, explizit gegen spätere Verwechslung mit rundung_minuten. */}
+					<input type="time" step={60} className="zeit-time" value={zeiten[i]} disabled={busy || art !== "arbeit"} onChange={(e) => setZeit(i, e.target.value)} />
 				</label>
 			))}
 			<button className="zeit-btn primaer" disabled={busy || (art === "arbeit" && zeiten[0] === "")} onClick={speichern}>speichern</button>
@@ -219,7 +222,8 @@ function TagesListe({ status, aktionen, edit, setEdit }: { status: ZeitStatus; a
 			{edit !== null && !inMonat && aktionen !== undefined && (
 				<>
 					<div className="mono" style={{ fontSize: 10, color: "var(--dim)", margin: "6px 0 2px" }}>Tag außerhalb des angezeigten Monats:</div>
-					<TagEditor datum={edit} tag={null} aktionen={aktionen} onClose={() => setEdit(null)} />
+					{/* key={edit}: sonst behält der Editor beim Wechsel auf einen anderen offenen Tag die getippten Zeiten. */}
+					<TagEditor key={edit} datum={edit} tag={null} aktionen={aktionen} onClose={() => setEdit(null)} />
 				</>
 			)}
 			{tage.map((t, i) => {
@@ -231,7 +235,7 @@ function TagesListe({ status, aktionen, edit, setEdit }: { status: ZeitStatus; a
 				const art = t.art === "arbeit" || t.art === "urlaub" || t.art === "krank" ? t.art : null;
 				const cls = "zeit-row" + (we ? " we" : "") + (datum === heute ? " heute" : "") + (offen ? " offen" : "") + (edit === datum ? " sel" : "") + (lesend ? " lesend" : "");
 				return (
-					<React.Fragment key={datum || String(i)}>
+					<React.Fragment key={datum ? `${datum}-${i}` : String(i)}>
 						<div className={cls} onClick={() => { if (!lesend && datum !== "") setEdit(edit === datum ? null : datum); }}>
 							<span className="mono">{datum.length === 10 ? `${datum.slice(8, 10)}.${datum.slice(5, 7)}.` : datum}</span>
 							<span className="mono" style={{ color: we ? "var(--dim)" : "var(--muted)" }}>{wt}</span>
@@ -254,7 +258,7 @@ function TagesListe({ status, aktionen, edit, setEdit }: { status: ZeitStatus; a
 }
 
 function Fuss({ status, aktionen }: { status: ZeitStatus; aktionen?: ZeitAktionen }): JSX.Element | null {
-	const monate = status.saldo.monate.map((m) => m.monat).filter((m): m is string => typeof m === "string" && m.length === 7);
+	const monate = [...new Set(status.saldo.monate.map((m) => m.monat).filter((m): m is string => typeof m === "string" && m.length === 7))];
 	const [monat, setMonat] = useState<string>(status.monat.monat);
 	if (aktionen === undefined) return null;
 	const auswahl = monate.includes(monat) ? monat : status.monat.monat;
