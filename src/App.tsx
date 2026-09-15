@@ -20,6 +20,9 @@ import { CutterView } from "./CutterView";
 import { DruckView, DruckFehlerGrenze, type DruckAktionen } from "./DruckView";
 import { DruckStatusZeile } from "./DruckStatusZeile";
 import { loadDruckStatus, watchDruckStatus, runDruckCli, warteAufRevision, effektivHealth, type DruckStatus } from "./loadDruck";
+import { ArbeitszeitView, ZeitFehlerGrenze } from "./ArbeitszeitView";
+import { ArbeitszeitZeile } from "./ArbeitszeitZeile";
+import { watchZeitStatus, type ZeitStatus } from "./loadArbeitszeit";
 
 /* ---------- Helpers ---------- */
 const fmtCompact = (n: number): string => {
@@ -79,9 +82,9 @@ function useTick(ms = 1000): void {
 }
 
 /* ---------- Header (mit Tabs) ---------- */
-type TabId = "OVERVIEW" | "RESEARCH" | "CUTTER" | "DRUCK";
+type TabId = "OVERVIEW" | "RESEARCH" | "CUTTER" | "DRUCK" | "ZEIT";
 function Header({ tab, setTab, onRefresh, fetchedAt }: { tab: TabId; setTab: (t: TabId) => void; onRefresh: () => void; fetchedAt: string }): JSX.Element {
-	const TABS: Array<[TabId, string]> = [["OVERVIEW", "ÜBERSICHT"], ["RESEARCH", "RESEARCH"], ["CUTTER", "CUTTER"], ["DRUCK", "3D-DRUCK"]];
+	const TABS: Array<[TabId, string]> = [["OVERVIEW", "ÜBERSICHT"], ["RESEARCH", "RESEARCH"], ["CUTTER", "CUTTER"], ["DRUCK", "3D-DRUCK"], ["ZEIT", "ARBEITSZEIT"]];
 	return (
 		<div style={{ padding: "14px 18px 10px" }}>
 			<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -548,6 +551,8 @@ export function App(): JSX.Element {
 	const [briefings, setBriefings] = useState<BriefingData>(() => loadBriefings());
 	// 3D-Druck: der Watcher füllt sofort beim Mount, ein Initializer würde die Datei doppelt lesen.
 	const [druck, setDruck] = useState<DruckStatus | null>(null);
+	// Arbeitszeit: gleiche Mechanik wie 3D-Druck, eigener Watcher auf Arbeitszeit/status.json.
+	const [zeit, setZeit] = useState<ZeitStatus | null>(null);
 
 	const refreshTokens = useCallback((): void => {
 		void fetchTokenStats(new Date().toISOString()).then(setTokens);
@@ -583,6 +588,9 @@ export function App(): JSX.Element {
 
 	// 3D-Druck: mtime-Watcher auf status.json, meldet auch ausbleibende Läufe (TTL).
 	useEffect(() => watchDruckStatus(setDruck), []);
+
+	// Arbeitszeit: mtime-Watcher auf status.json, gleiche Mechanik wie beim 3D-Druck-Tab.
+	useEffect(() => watchZeitStatus(setZeit), []);
 
 	// 3D-Druck-Aktionen: eigenes Busy-Flag. cliInFlight in runDruckCli wird zwar
 	// synchron im Promise-Executor gesetzt, deckt aber nur den Python-Aufruf selbst
@@ -653,6 +661,7 @@ export function App(): JSX.Element {
 					<>
 						<BriefingWidget data={briefings} />
 						<DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckStatusZeile status={druck} onOpen={() => setTab("DRUCK")} /></DruckFehlerGrenze>
+						<ZeitFehlerGrenze revision={zeit?.revision ?? -1}><ArbeitszeitZeile status={zeit} onOpen={() => setTab("ZEIT")} /></ZeitFehlerGrenze>
 							<TokenBurn tokens={tokens} />
 						<StatsRow counts={counts} tokens={tokens} />
 						<SkillGrid skills={skills} />
@@ -664,6 +673,7 @@ export function App(): JSX.Element {
 				)}
 				{tab === "RESEARCH" && <ResearchFeed research={research} onRefresh={() => refreshResearch(true)} />}
 				{tab === "DRUCK" && <DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckView status={druck} aktionen={druckAktionen} /></DruckFehlerGrenze>}
+				{tab === "ZEIT" && <ZeitFehlerGrenze revision={zeit?.revision ?? -1}><ArbeitszeitView status={zeit} /></ZeitFehlerGrenze>}
 			</div>
 			)}
 			<ChatDrawer />
