@@ -32,11 +32,12 @@ export function StundenBalken({ wochen, schnitt }: { wochen: ZeitWoche[]; schnit
 	return (
 		<div>
 			<div className="zeit-vb">
-				{s0 > 0 && <span className="zeit-vb-linie" style={{ bottom: `${linie}%` }} title={`Schnitt ${fmtStunden(s0)} h`} />}
+				{s0 > 0 && <span className="zeit-vb-linie" style={{ bottom: `${linie}%` }} />}
 				{wochen.map((w, i) => {
 					const s = zahl(w.stunden);
 					const h = klemmen(Math.round((s / max) * 100), 0, 100);
 					const cls = "zeit-vb-bar" + (i === wochen.length - 1 ? " aktuell" : "") + (s === 0 ? " leer" : "");
+					// Index im Key schützt vor doppelten jahr/kw in ungeprüften Daten; beim Wochenwechsel kostet das die Height-Transition, bewusst.
 					return <div key={`${zahl(w.jahr)}-${zahl(w.kw)}-${i}`} className={cls} style={{ height: `${Math.max(h, s === 0 ? 30 : 2)}%` }} title={`KW ${zahl(w.kw)} (${typeof w.von === "string" ? w.von : "?"} bis ${typeof w.bis === "string" ? w.bis : "?"}): ${fmtStunden(s)} h`} />;
 				})}
 			</div>
@@ -51,17 +52,19 @@ export function StundenBalken({ wochen, schnitt }: { wochen: ZeitWoche[]; schnit
 }
 
 export function MonatsBalken({ monate }: { monate: ZeitMonatSumme[] }): JSX.Element {
-	const max = Math.max(1, ...monate.map((m) => Math.max(zahl(m.ist), zahl(m.soll))));
+	// Höchstens zwölf Monate, sonst laufen die Labels über und beschriften den falschen Balken.
+	const sichtbar = monate.slice(-12);
+	const max = Math.max(1, ...sichtbar.map((m) => Math.max(zahl(m.ist), zahl(m.soll))));
 	return (
 		<div>
 			<div className="zeit-vb">
-				{monate.map((m, i) => {
+				{sichtbar.map((m, i) => {
 					const ist = zahl(m.ist), soll = zahl(m.soll);
 					const h = klemmen(Math.round((ist / max) * 100), 0, 100);
 					const sollPct = klemmen(Math.round((soll / max) * 100), 0, 100);
 					const diff = ist - soll;
 					return (
-						<div key={`${typeof m.monat === "string" ? m.monat : "?"}-${i}`} className={"zeit-mb" + (i === monate.length - 1 ? " aktuell" : "")} title={`${monatKurz(m.monat)}: ${fmtStunden(ist)} h von ${fmtStunden(soll, 0)} h (${diff >= 0 ? "+" : ""}${fmtStunden(diff)})`}>
+						<div key={`${typeof m.monat === "string" ? m.monat : "?"}-${i}`} className={"zeit-mb" + (i === sichtbar.length - 1 ? " aktuell" : "")} title={`${monatKurz(m.monat)}: ${fmtStunden(ist)} h von ${fmtStunden(soll, Number.isInteger(soll) ? 0 : 2)} h (${diff >= 0 ? "+" : ""}${fmtStunden(diff)} h)`}>
 							<span className="zeit-mb-soll" style={{ bottom: `${sollPct}%` }} />
 							<i className={ist >= soll ? "" : "fehl"} style={{ height: `${Math.max(h, 2)}%` }} />
 						</div>
@@ -69,10 +72,10 @@ export function MonatsBalken({ monate }: { monate: ZeitMonatSumme[] }): JSX.Elem
 				})}
 			</div>
 			<div className="zeit-vb-labels mono">
-				{monate.map((m, i) => <span key={`${typeof m.monat === "string" ? m.monat : "?"}-${i}`}>{monatKurz(m.monat)}</span>)}
+				{sichtbar.map((m, i) => <span key={`${typeof m.monat === "string" ? m.monat : "?"}-${i}`}>{monatKurz(m.monat)}</span>)}
 			</div>
 			<div className="mono" style={{ fontSize: 9.5, color: "var(--dim)", marginTop: 4 }}>
-				{monate.length === 0 ? "keine Monate" : "gestrichelt: soll · dunkel: unter soll · letzter balken: laufender monat"}
+				{sichtbar.length === 0 ? "keine Monate" : "gestrichelt: soll · dunkel: unter soll · letzter balken: laufender monat"}
 			</div>
 		</div>
 	);

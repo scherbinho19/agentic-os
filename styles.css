@@ -2587,11 +2587,12 @@
 .agentic-os-root .zeit-vb-bar.leer { background: transparent; border: 1px dashed var(--border); box-shadow: none; }
 .agentic-os-root .zeit-vb-linie { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--accent); opacity: .6; pointer-events: none; }
 .agentic-os-root .zeit-vb-labels { display: flex; gap: 5px; margin-top: 3px; }
-.agentic-os-root .zeit-vb-labels span { flex: 1; text-align: center; font-size: 8px; color: var(--dim); white-space: nowrap; }
+.agentic-os-root .zeit-vb-labels span { flex: 1; text-align: center; font-size: 8px; color: var(--dim); white-space: nowrap; min-width: 0; overflow: hidden; }
+/* height: 100% löst nur auf, weil .zeit-vb eine feste height: 70px hat; min-height würde alle Monatsbalken auf 0 kollabieren. */
 .agentic-os-root .zeit-mb { flex: 1; position: relative; height: 100%; display: flex; align-items: flex-end; }
 .agentic-os-root .zeit-mb i { display: block; width: 100%; background: var(--accent); border-radius: 2px 2px 0 0; }
 .agentic-os-root .zeit-mb i.fehl { background: #8a3a10; }
-.agentic-os-root .zeit-mb.aktuell i { opacity: .55; }
+.agentic-os-root .zeit-mb.aktuell i:not(.fehl) { opacity: .55; }
 .agentic-os-root .zeit-mb-soll { position: absolute; left: -2px; right: -2px; border-top: 1px dashed var(--muted); pointer-events: none; }
 .agentic-os-root .zeit-row { display: grid; grid-template-columns: 50px 26px 1fr 50px 50px 50px 50px 46px; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px dashed #1c1c1c; font-size: 11px; cursor: pointer; }
 .agentic-os-root .zeit-row:last-child { border-bottom: none; }
@@ -2612,4 +2613,4 @@
 .agentic-os-root .zeit-select { background: #0d0d0d; color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 6px; }
 .agentic-os-root .zeit-editor { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 8px 10px; margin: 4px 0 6px; border: 1px solid var(--border-2); border-radius: 4px; background: #0d0d0d; }
 .agentic-os-root .zeit-feld { display: flex; flex-direction: column; gap: 2px; font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
-.agentic-os-root .zeit-time { background: #161616; color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 4px; color-scheme: dark; }
+.agentic-os-root .zeit-time { background: #161616; color: var(--text); border: 1px solid var(--border-2); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 4px; color-scheme: dark; cursor: default; }
