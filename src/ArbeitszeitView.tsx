@@ -143,7 +143,7 @@ function Kennzahlen({ status }: { status: ZeitStatus }): JSX.Element {
 	const m = status.monat, s = status.saldo, u = status.urlaub;
 	const noetig = m.stunden_pro_tag_noetig;
 	return (
-		<div style={{ margin: "12px 18px 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+		<div style={{ margin: "12px 18px 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 10 }}>
 			<Stat value={`${fmtStunden(m.ist)} / ${fmtStunden(m.soll, 0)}`} label={`stunden ${monatKurz(m.monat)}`} accent />
 			{m.ueberstunden > 0
 				? <Stat value={`+${fmtStunden(m.ueberstunden)} h`} label="überstunden" accent />
