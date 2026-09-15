@@ -72,7 +72,7 @@ export function MonatsBalken({ monate }: { monate: ZeitMonatSumme[] }): JSX.Elem
 				})}
 			</div>
 			<div className="zeit-vb-labels mono">
-				{sichtbar.map((m, i) => <span key={`${typeof m.monat === "string" ? m.monat : "?"}-${i}`}>{monatKurz(m.monat)}</span>)}
+				{sichtbar.map((m, i) => <span key={`${typeof m.monat === "string" ? m.monat : "?"}-${i}`} style={{ color: i === sichtbar.length - 1 ? "var(--accent)" : undefined }}>{monatKurz(m.monat)}</span>)}
 			</div>
 			<div className="mono" style={{ fontSize: 9.5, color: "var(--dim)", marginTop: 4 }}>
 				{sichtbar.length === 0 ? "keine Monate" : "gestrichelt: soll · dunkel: unter soll · letzter balken: laufender monat"}
