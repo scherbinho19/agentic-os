@@ -94,23 +94,23 @@ const artOderNull = (v: unknown): ZeitArt | null => (v === "arbeit" || v === "ur
  * Mutiert `raw` in place und gibt dieselbe Referenz zurück.
  */
 export function normalisiereZeitStatus(raw: unknown): ZeitStatus | null {
-	// Bewusst enger als loadDruck.ts: ohne Record<string, unknown>, damit Tippfehler in Feldnamen zur Compile-Zeit auffallen.
+	// Bewusst enger als loadDruck.ts: Partial<ZeitStatus> statt Record<string, unknown> auf allen Ebenen, damit Tippfehler in Feldnamen zur Compile-Zeit auffallen (TS2551).
 	const r = objekt(raw) as Partial<ZeitStatus> | null;
 	if (r === null || typeof r.generated_at !== "string") return null;
 	// Ohne monat gibt es nichts anzuzeigen. Wie projekte beim Druck: hart null statt leerer Kulisse.
-	const m = objekt(r.monat);
+	const m = objekt(r.monat) as Partial<ZeitStatus["monat"]> | null;
 	if (m === null) return null;
 
 	// revision muss vergleichbar bleiben, sonst hängt warteAufZeitRevision an einem >=-Vergleich.
 	if (!Number.isSafeInteger(r.revision) || (r.revision as number) < 0) r.revision = 0;
 
-	const h = objekt(r.health);
+	const h = objekt(r.health) as Partial<ZeitStatus["health"]> | null;
 	const hs = h?.status;
 	r.health = h !== null && (hs === "ok" || hs === "stale" || hs === "error")
 		? { status: hs, grund: typeof h.grund === "string" ? h.grund : "", quellen: objekt(h.quellen) ?? {} }
 		: { status: "error", grund: "health fehlt oder ist ungültig in status.json", quellen: {} };
 
-	const he = objekt(r.heute) ?? {};
+	const he = (objekt(r.heute) ?? {}) as Partial<ZeitStatus["heute"]>;
 	const z = he.zustand;
 	r.heute = {
 		datum: text(he.datum) ?? "",
@@ -129,9 +129,9 @@ export function normalisiereZeitStatus(raw: unknown): ZeitStatus | null {
 	};
 	r.wochen = objektListe<ZeitWoche>(r.wochen);
 	r.wochen_schnitt = zahl(r.wochen_schnitt);
-	const s = objekt(r.saldo) ?? {};
+	const s = (objekt(r.saldo) ?? {}) as Partial<ZeitStatus["saldo"]>;
 	r.saldo = { stunden: zahl(s.stunden), monate: objektListe<ZeitMonatSumme>(s.monate) };
-	const u = objekt(r.urlaub) ?? {};
+	const u = (objekt(r.urlaub) ?? {}) as Partial<ZeitStatus["urlaub"]>;
 	r.urlaub = { jahr: zahl(u.jahr), anspruch: zahl(u.anspruch), genommen: zahl(u.genommen), rest: zahl(u.rest), krank_tage: zahl(u.krank_tage) };
 	r.unvollstaendig = stringListe(r.unvollstaendig);
 	r.befunde = stringListe(r.befunde);
@@ -250,10 +250,14 @@ export function runZeitCli(args: string[]): Promise<{ ok: boolean; stdout: strin
 	});
 }
 
-/** Revision aus der CLI-Ausgabe, undefined wenn keine Zahl kam (Pipe vorher geschlossen). */
+/**
+ * Revision aus der CLI-Ausgabe, undefined wenn keine Zahl kam (Pipe vorher geschlossen).
+ * Nur eine reine Ziffernfolge zählt als Revision, sonst undefined: ein Pfad bei --export
+ * oder eine Warnzeile davor sind keine Revision, auch wenn die Zeile mit Ziffern beginnt.
+ */
 export function zeitRevision(stdout: string): number | undefined {
-	const n = parseInt(stdout.trim(), 10);
-	return Number.isSafeInteger(n) ? n : undefined;
+	const t = stdout.trim();
+	return /^\d+$/.test(t) && Number.isSafeInteger(Number(t)) ? Number(t) : undefined;
 }
 
 /** Pollt status.json, bis revision >= n. Beim Timeout den letzten Stand zurückgeben. */
