@@ -94,7 +94,8 @@ const artOderNull = (v: unknown): ZeitArt | null => (v === "arbeit" || v === "ur
  * Mutiert `raw` in place und gibt dieselbe Referenz zurück.
  */
 export function normalisiereZeitStatus(raw: unknown): ZeitStatus | null {
-	const r = objekt(raw) as (Partial<ZeitStatus> & Record<string, unknown>) | null;
+	// Bewusst enger als loadDruck.ts: ohne Record<string, unknown>, damit Tippfehler in Feldnamen zur Compile-Zeit auffallen.
+	const r = objekt(raw) as Partial<ZeitStatus> | null;
 	if (r === null || typeof r.generated_at !== "string") return null;
 	// Ohne monat gibt es nichts anzuzeigen. Wie projekte beim Druck: hart null statt leerer Kulisse.
 	const m = objekt(r.monat);
