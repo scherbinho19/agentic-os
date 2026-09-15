@@ -95,6 +95,8 @@ const artOderNull = (v: unknown): ZeitArt | null => (v === "arbeit" || v === "ur
  */
 export function normalisiereZeitStatus(raw: unknown): ZeitStatus | null {
 	// Bewusst enger als loadDruck.ts: Partial<ZeitStatus> statt Record<string, unknown> auf allen Ebenen, damit Tippfehler in Feldnamen zur Compile-Zeit auffallen (TS2551).
+	// Der Cast behauptet die Vertragstypen nur, geprüft werden sie erst von den Guards unten; ein `?? []` oder
+	// `?? "nichts"` statt eines Guards kompiliert und ließe rohe Werte durch.
 	const r = objekt(raw) as Partial<ZeitStatus> | null;
 	if (r === null || typeof r.generated_at !== "string") return null;
 	// Ohne monat gibt es nichts anzuzeigen. Wie projekte beim Druck: hart null statt leerer Kulisse.
