@@ -32,6 +32,16 @@ function text(v: unknown): string {
 const MONAT_RE = /^\d{4}-\d{2}$/;
 const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Key für den Inline-Editor eines Tages. Enthält die Felder des Tages, damit der Editor
+ * remountet, sobald ein Snapshot den Tag ändert (Codex-Befund: ein offener Editor hätte
+ * sonst ein inzwischen gestempeltes Ende mit seinem alten Entwurf überschrieben). Gleicher
+ * Tag, gleiche Felder heißt gleicher Key, der Entwurf überlebt dann den 5-s-Poll.
+ */
+export function editorSchluessel(datum: string, tag: ZeitTag): string {
+	return [datum, tag.art, tag.start, tag.pause_start, tag.pause_ende, tag.ende].map((v) => (typeof v === "string" ? v : "")).join("|");
+}
+
 /** Fängt Render-Fehler des Arbeitszeit-Bereichs ab, wie DruckFehlerGrenze. Neuer Snapshot löscht den Fehler. */
 export class ZeitFehlerGrenze extends React.Component<{ revision: number; children: React.ReactNode }, { fehler: string | null }> {
 	state: { fehler: string | null } = { fehler: null };
@@ -254,7 +264,7 @@ function TagesListe({ status, aktionen, edit, setEdit }: { status: ZeitStatus; a
 							<span className="mono tnum">{text(t.ende)}</span>
 							<span className="mono tnum zeit-c-std">{zahl(t.stunden) > 0 ? fmtStunden(t.stunden) : ""}</span>
 						</div>
-						{edit === datum && aktionen !== undefined && <TagEditor datum={datum} tag={t} aktionen={aktionen} onClose={() => setEdit(null)} />}
+						{edit === datum && aktionen !== undefined && <TagEditor key={editorSchluessel(datum, t)} datum={datum} tag={t} aktionen={aktionen} onClose={() => setEdit(null)} />}
 					</React.Fragment>
 				);
 			})}
