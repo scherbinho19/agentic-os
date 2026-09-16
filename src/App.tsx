@@ -112,7 +112,7 @@ function Header({ tab, setTab, onRefresh, fetchedAt }: { tab: TabId; setTab: (t:
 					</button>
 				</div>
 			</div>
-			<div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+			<div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
 				{TABS.map(([t, label], i) => (
 					<button key={t} className={"tab " + (tab === t ? "active" : "")} onClick={() => setTab(t)}>
 						<span className="ix">[{String(i).padStart(2, "0")}]</span> {label}

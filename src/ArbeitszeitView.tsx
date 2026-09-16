@@ -156,7 +156,7 @@ function Kennzahlen({ status }: { status: ZeitStatus }): JSX.Element {
 	);
 }
 
-function OffeneTage({ status, onSpringe }: { status: ZeitStatus; onSpringe: (datum: string) => void }): JSX.Element | null {
+function OffeneTage({ status, onSpringe, lesend }: { status: ZeitStatus; onSpringe: (datum: string) => void; lesend: boolean }): JSX.Element | null {
 	// unvollstaendig ist eine ungeprüfte String-Liste. Ein leerer oder mit "-" beginnender
 	// Wert würde bis zur CLI durchgereicht, wo argparse ihn als Option liest.
 	const tage = status.unvollstaendig.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
@@ -164,9 +164,11 @@ function OffeneTage({ status, onSpringe }: { status: ZeitStatus; onSpringe: (dat
 	return (
 		<div className="featured" style={{ margin: "10px 18px 0", padding: "10px 14px", borderColor: "#3a2414" }}>
 			<span className="ctitle" style={{ color: "var(--accent)" }}>⚠ offene tage · {tage.length}</span>
-			<div style={{ fontSize: 12, color: "#f5f5f5", marginTop: 4 }}>Diese Tage haben kein Ende und zählen nicht. Klick öffnet den Tag zum Nachtragen.</div>
+			<div style={{ fontSize: 12, color: "#f5f5f5", marginTop: 4 }}>Diese Tage haben kein Ende und zählen nicht.{lesend ? "" : " Klick öffnet den Tag zum Nachtragen."}</div>
 			<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-				{tage.map((d) => <button key={d} className="zeit-btn" onClick={() => onSpringe(d)}>{d}</button>)}
+				{tage.map((d) => lesend
+					? <span key={d} className="zeit-pill warn">{d}</span>
+					: <button key={d} className="zeit-btn" onClick={() => onSpringe(d)}>{d}</button>)}
 			</div>
 		</div>
 	);
@@ -292,7 +294,7 @@ export function ArbeitszeitView({ status, aktionen }: { status: ZeitStatus | nul
 			{zeitHealth(status) === "stale" && <RefreshKnopf aktionen={aktionen} />}
 			<Heute status={status} aktionen={aktionen} />
 			<Kennzahlen status={status} />
-			<OffeneTage status={status} onSpringe={setEdit} />
+			<OffeneTage status={status} onSpringe={setEdit} lesend={aktionen === undefined} />
 			<TagesListe status={status} aktionen={aktionen} edit={edit} setEdit={setEdit} />
 			<div style={{ margin: "10px 18px 0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 				<div className="featured" style={{ padding: "12px 14px" }}>
