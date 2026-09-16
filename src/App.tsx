@@ -539,6 +539,10 @@ function BriefingWidget({ data }: { data: BriefingData }): JSX.Element {
 }
 
 /* ---------- App Root ---------- */
+const STEMPEL_TEXT: Record<"start" | "pause" | "weiter" | "ende", string> = {
+	start: "Arbeitszeit: gestartet.", pause: "Arbeitszeit: Pause.", weiter: "Arbeitszeit: weiter.", ende: "Arbeitszeit: Feierabend eingetragen.",
+};
+
 export function App(): JSX.Element {
 	const [tab, setTab] = useState<TabId>("OVERVIEW");
 	const [tokens, setTokens] = useState<TokenStats | null>(null);
@@ -671,6 +675,7 @@ export function App(): JSX.Element {
 			const r = await runZeitCli(["--export", monat]);
 			if (!r.ok) { new Notice(`Arbeitszeit: ${r.error ?? "Export fehlgeschlagen"}`, 8000); return false; }
 			const pfad = r.stdout.trim();
+			if (pfad === "") { new Notice("Arbeitszeit: Export ohne Pfad zurückgekommen, bitte Exportordner prüfen.", 8000); return false; }
 			new Notice(`Arbeitszeit: exportiert nach ${pfad}`, 8000);
 			try {
 				// Wie readElectronClipboard in XtermPane.tsx: Electron ist im Renderer erreichbar.
@@ -685,9 +690,6 @@ export function App(): JSX.Element {
 			setZeitLaeuft(false);
 		}
 	}, []);
-	const STEMPEL_TEXT: Record<"start" | "pause" | "weiter" | "ende", string> = {
-		start: "Arbeitszeit: gestartet.", pause: "Arbeitszeit: Pause.", weiter: "Arbeitszeit: weiter.", ende: "Arbeitszeit: Feierabend eingetragen.",
-	};
 	const zeitAktionen: ZeitAktionen = {
 		laeuft: zeitLaeuft,
 		refresh: () => zeitCli(["--refresh"], "Arbeitszeit: Stand erzeugt."),

@@ -247,7 +247,11 @@ export function runZeitCli(args: string[]): Promise<{ ok: boolean; stdout: strin
 		child.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
 			clearTimeout(killTimer);
 			if (code === 0) finish({ ok: true, stdout: out });
-			else finish({ ok: false, stdout: out, error: (err.split("\n").filter((l) => l.trim() !== "").pop() ?? `Exit ${code ?? signal ?? "?"}`).trim() });
+			else {
+				// Die Notice zeigt nur die letzte stderr-Zeile; der volle Traceback gehört in die Konsole.
+				if (code !== 0) console.error("[agentic-os] arbeitszeit.py exit", code ?? signal, "\n" + err);
+				finish({ ok: false, stdout: out, error: (err.split("\n").filter((l) => l.trim() !== "").pop() ?? `Exit ${code ?? signal ?? "?"}`).trim() });
+			}
 		});
 	});
 }

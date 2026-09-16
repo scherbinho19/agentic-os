@@ -29,6 +29,9 @@ function text(v: unknown): string {
 	return typeof v === "string" ? v : "";
 }
 
+const MONAT_RE = /^\d{4}-\d{2}$/;
+const DATUM_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Fängt Render-Fehler des Arbeitszeit-Bereichs ab, wie DruckFehlerGrenze. Neuer Snapshot löscht den Fehler. */
 export class ZeitFehlerGrenze extends React.Component<{ revision: number; children: React.ReactNode }, { fehler: string | null }> {
 	state: { fehler: string | null } = { fehler: null };
@@ -159,7 +162,7 @@ function Kennzahlen({ status }: { status: ZeitStatus }): JSX.Element {
 function OffeneTage({ status, onSpringe, lesend }: { status: ZeitStatus; onSpringe: (datum: string) => void; lesend: boolean }): JSX.Element | null {
 	// unvollstaendig ist eine ungeprüfte String-Liste. Ein leerer oder mit "-" beginnender
 	// Wert würde bis zur CLI durchgereicht, wo argparse ihn als Option liest.
-	const tage = status.unvollstaendig.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+	const tage = status.unvollstaendig.filter((d) => DATUM_RE.test(d));
 	if (tage.length === 0) return null;
 	return (
 		<div className="featured" style={{ margin: "10px 18px 0", padding: "10px 14px", borderColor: "#3a2414" }}>
@@ -238,7 +241,7 @@ function TagesListe({ status, aktionen, edit, setEdit }: { status: ZeitStatus; a
 				const cls = "zeit-row" + (we ? " we" : "") + (datum === heute ? " heute" : "") + (offen ? " offen" : "") + (edit === datum ? " sel" : "") + (lesend ? " lesend" : "");
 				return (
 					<React.Fragment key={datum ? `${datum}-${i}` : String(i)}>
-						<div className={cls} onClick={() => { if (!lesend && datum !== "") setEdit(edit === datum ? null : datum); }}>
+						<div className={cls} onClick={() => { if (!lesend && DATUM_RE.test(datum)) setEdit(edit === datum ? null : datum); }}>
 							<span className="mono">{datum.length === 10 ? `${datum.slice(8, 10)}.${datum.slice(5, 7)}.` : datum}</span>
 							<span className="mono" style={{ color: we ? "var(--dim)" : "var(--muted)" }}>{wt}</span>
 							<span>
@@ -260,15 +263,16 @@ function TagesListe({ status, aktionen, edit, setEdit }: { status: ZeitStatus; a
 }
 
 function Fuss({ status, aktionen }: { status: ZeitStatus; aktionen?: ZeitAktionen }): JSX.Element | null {
-	const monate = [...new Set(status.saldo.monate.map((m) => m.monat).filter((m): m is string => typeof m === "string" && m.length === 7))];
+	const monate = [...new Set(status.saldo.monate.map((m) => m.monat).filter((m): m is string => typeof m === "string" && MONAT_RE.test(m)))];
 	const [monat, setMonat] = useState<string>(status.monat.monat);
 	if (aktionen === undefined) return null;
-	const auswahl = monate.includes(monat) ? monat : status.monat.monat;
+	const aktuell = MONAT_RE.test(status.monat.monat) ? status.monat.monat : "";
+	const auswahl = monate.includes(monat) ? monat : aktuell;
 	return (
 		<div style={{ margin: "10px 18px 18px", display: "flex", gap: 8, alignItems: "center" }}>
 			<select className="zeit-select" value={auswahl} disabled={aktionen.laeuft} onChange={(e) => setMonat(e.target.value)}>
 				{monate.map((m) => <option key={m} value={m}>{monatKurz(m)}</option>)}
-				{!monate.includes(status.monat.monat) && <option value={status.monat.monat}>{monatKurz(status.monat.monat)}</option>}
+				{aktuell !== "" && !monate.includes(aktuell) && <option value={aktuell}>{monatKurz(aktuell)}</option>}
 			</select>
 			<button className="zeit-btn primaer" disabled={aktionen.laeuft || auswahl === ""} onClick={() => void aktionen.exportieren(auswahl)}>⇩ excel exportieren</button>
 			<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>schreibt in den Exportordner aus config.json, nie über eine vorhandene Datei</span>
