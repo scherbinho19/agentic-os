@@ -20,9 +20,9 @@ import { CutterView } from "./CutterView";
 import { DruckView, DruckFehlerGrenze, type DruckAktionen } from "./DruckView";
 import { DruckStatusZeile } from "./DruckStatusZeile";
 import { loadDruckStatus, watchDruckStatus, runDruckCli, warteAufRevision, effektivHealth, type DruckStatus } from "./loadDruck";
-import { ArbeitszeitView, ZeitFehlerGrenze } from "./ArbeitszeitView";
+import { ArbeitszeitView, ZeitFehlerGrenze, type ZeitAktionen } from "./ArbeitszeitView";
 import { ArbeitszeitZeile } from "./ArbeitszeitZeile";
-import { watchZeitStatus, type ZeitStatus } from "./loadArbeitszeit";
+import { loadZeitStatus, runZeitCli, warteAufZeitRevision, watchZeitStatus, zeitHealth, zeitRevision, type ZeitStatus } from "./loadArbeitszeit";
 
 /* ---------- Helpers ---------- */
 const fmtCompact = (n: number): string => {
@@ -632,6 +632,72 @@ export function App(): JSX.Element {
 		},
 	};
 
+	// Arbeitszeit-Aktionen: eigenes Busy-Flag mit Ref-Eintrittsguard, gleiche Begründung wie
+	// bei druckCli. Ein abgewiesener Zweitaufruf kehrt VOR dem try zurück und löscht das
+	// Flag des laufenden Aufrufs nicht. Rückgabe: ob die Aktion geglückt ist, damit der
+	// Tag-Editor bei einem Fehler offen bleibt.
+	const [zeitLaeuft, setZeitLaeuft] = useState<boolean>(false);
+	const zeitLaeuftRef = useRef<boolean>(false);
+	const zeitCli = useCallback(async (args: string[], erfolg: string): Promise<boolean> => {
+		if (zeitLaeuftRef.current) return false;
+		zeitLaeuftRef.current = true;
+		setZeitLaeuft(true);
+		try {
+			const r = await runZeitCli(args);
+			if (!r.ok) {
+				// Exit 1 kann trotzdem einen Error-Stand geschrieben haben (--refresh mit kaputter Config), sofort zeigen.
+				const s0 = loadZeitStatus();
+				if (s0 !== null) setZeit(s0);
+				new Notice(`Arbeitszeit: ${r.error ?? "unbekannter Fehler"}`, 6000);
+				return false;
+			}
+			const rev = zeitRevision(r.stdout);
+			const s = rev !== undefined ? await warteAufZeitRevision(rev) : loadZeitStatus();
+			if (s !== null) setZeit(s);
+			if (rev !== undefined && (s === null || s.revision < rev)) { new Notice("Arbeitszeit: Stand noch nicht übernommen, lädt nach.", 4000); return false; }
+			if (zeitHealth(s) === "error") { new Notice("Arbeitszeit: Stand meldet einen Fehler, siehe Tab.", 6000); return false; }
+			if (erfolg !== "") new Notice(erfolg, 2500);
+			return true;
+		} finally {
+			zeitLaeuftRef.current = false;
+			setZeitLaeuft(false);
+		}
+	}, []);
+	const zeitExport = useCallback(async (monat: string): Promise<boolean> => {
+		if (zeitLaeuftRef.current) return false;
+		zeitLaeuftRef.current = true;
+		setZeitLaeuft(true);
+		try {
+			const r = await runZeitCli(["--export", monat]);
+			if (!r.ok) { new Notice(`Arbeitszeit: ${r.error ?? "Export fehlgeschlagen"}`, 8000); return false; }
+			const pfad = r.stdout.trim();
+			new Notice(`Arbeitszeit: exportiert nach ${pfad}`, 8000);
+			try {
+				// Wie readElectronClipboard in XtermPane.tsx: Electron ist im Renderer erreichbar.
+				// Ohne Finder-Sprung bleibt die Notice mit dem Pfad, deshalb nur best effort.
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const electron = require("electron");
+				electron?.shell?.showItemInFolder?.(pfad);
+			} catch (_) { /* siehe oben */ }
+			return true;
+		} finally {
+			zeitLaeuftRef.current = false;
+			setZeitLaeuft(false);
+		}
+	}, []);
+	const STEMPEL_TEXT: Record<"start" | "pause" | "weiter" | "ende", string> = {
+		start: "Arbeitszeit: gestartet.", pause: "Arbeitszeit: Pause.", weiter: "Arbeitszeit: weiter.", ende: "Arbeitszeit: Feierabend eingetragen.",
+	};
+	const zeitAktionen: ZeitAktionen = {
+		laeuft: zeitLaeuft,
+		refresh: () => zeitCli(["--refresh"], "Arbeitszeit: Stand erzeugt."),
+		stempel: (aktion) => zeitCli(["--stempel", aktion], STEMPEL_TEXT[aktion]),
+		eintrag: (datum, zeiten) => zeitCli(["--eintrag", datum, ...zeiten], `Arbeitszeit: ${datum} gespeichert.`),
+		abwesend: (datum, art) => zeitCli(["--abwesend", datum, art], `Arbeitszeit: ${datum} → ${art}`),
+		loeschen: (datum) => zeitCli(["--loeschen", datum], `Arbeitszeit: ${datum} gelöscht.`),
+		exportieren: zeitExport,
+	};
+
 	const onToggleTask = useCallback((line: number): void => {
 		toggleTask(line);
 		setTasks(loadTasks());
@@ -646,7 +712,8 @@ export function App(): JSX.Element {
 		setBriefings(loadBriefings());
 		pullBriefings((changed) => { if (changed) reloadBriefings(); });
 		void druckCli(["--refresh"], "");
-	}, [refreshTokens, refreshResearch, reloadBriefings, druckCli]);
+		void zeitCli(["--refresh"], "");
+	}, [refreshTokens, refreshResearch, reloadBriefings, druckCli, zeitCli]);
 
 	const counts = { skills: skills.length, agents: agents.length, commands: commands.filter((c) => c.source !== "builtin").length };
 
@@ -673,7 +740,7 @@ export function App(): JSX.Element {
 				)}
 				{tab === "RESEARCH" && <ResearchFeed research={research} onRefresh={() => refreshResearch(true)} />}
 				{tab === "DRUCK" && <DruckFehlerGrenze revision={druck?.revision ?? -1}><DruckView status={druck} aktionen={druckAktionen} /></DruckFehlerGrenze>}
-				{tab === "ZEIT" && <ZeitFehlerGrenze revision={zeit?.revision ?? -1}><ArbeitszeitView status={zeit} /></ZeitFehlerGrenze>}
+				{tab === "ZEIT" && <ZeitFehlerGrenze revision={zeit?.revision ?? -1}><ArbeitszeitView status={zeit} aktionen={zeitAktionen} /></ZeitFehlerGrenze>}
 			</div>
 			)}
 			<ChatDrawer />
