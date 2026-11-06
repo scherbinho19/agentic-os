@@ -33,6 +33,8 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 					: <span style={{ color: "var(--muted)" }}>kein Druck aktiv</span>}
 				{eintrag !== undefined && <> · <span style={{ color: "var(--accent)" }}>{eintrag[0]}</span>{eintrag[2] !== null ? ` seit ${tageText(eintrag[2])}` : ""} ungeprüft</>}
 				{wartungFaellig > 0 && <> · <span style={{ color: "var(--accent)" }}>{wartungFaellig} {wartungFaellig === 1 ? "Wartung" : "Wartungen"} fällig</span></>}
+				{/* Plan fehlt oder ist kaputt: faellig ist dann 0, das darf die Statuszeile nicht als "nichts fällig" verschweigen. */}
+				{status.wartung.aufgaben.length === 0 && status.wartung.befunde.length > 0 && <> · <span style={{ color: "var(--accent)" }}>Wartung nicht auswertbar</span></>}
 				{knapp > 0 && <> · {knapp} nachkaufen</>}
 			</>
 		);
