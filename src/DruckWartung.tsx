@@ -15,7 +15,7 @@ export const DATUM_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface WartungsAktionen {
 	gewartet: (id: string, datum?: string) => Promise<void>;
-	gewartetZurueck: (id: string) => Promise<void>;
+	gewartetZurueck: (id: string, datum: string) => Promise<void>;
 	laeuft: boolean;
 }
 
@@ -42,7 +42,7 @@ function heuteIso(): string {
 
 function farbe(z: Zustand): string {
 	if (z === "faellig" || z === "nie") return "var(--accent)";
-	if (z === "bald") return "#e0b341";
+	if (z === "bald") return "#f59e0b";
 	return "var(--dim)";
 }
 
@@ -57,36 +57,35 @@ function Zeile({ a, aktionen }: { a: DruckWartungsAufgabe; aktionen?: WartungsAk
 	const anteil = typeof a.anteil === "number" && Number.isFinite(a.anteil) ? Math.max(0, Math.min(1, a.anteil)) : null;
 	const heute = heuteIso();
 	const datumOk = DATUM_ISO.test(datum) && datum <= heute;
+	const rueckDatum = text(a.rueckgaengig_datum);
 	const titel = [text(a.seit), text(a.notiz)].filter((s) => s !== "").join(" · ");
 	return (
 		<div className="druck-row" style={{ cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 4 }}>
 			<div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
 				<span style={{ color: farbe(z), fontSize: 10, flex: "0 0 10px" }}>{ZEICHEN[z]}</span>
 				<span className="mono" style={{ fontSize: 9.5, color: "var(--dim)", flex: "0 0 74px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text(a.bereich)}</span>
-				<span title={text(a.hinweis)} style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: "#f5f5f5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text(a.aufgabe)}</span>
-				<span className="mono" style={{ fontSize: 10, color: farbe(z), whiteSpace: "nowrap" }}>{text(a.rest)}</span>
+				<span title={text(a.hinweis) || undefined} style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: "#f5f5f5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{text(a.aufgabe)}</span>
+				<span className="mono" title={text(a.rest) || undefined} style={{ fontSize: 10, color: farbe(z), whiteSpace: "nowrap", flex: "0 1 auto", minWidth: 0, maxWidth: "45%", overflow: "hidden", textOverflow: "ellipsis" }}>{text(a.rest)}</span>
 			</div>
 			<div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 18, flexWrap: "wrap" }}>
 				{anteil !== null && (
-					<div className="hatch" style={{ position: "relative", width: 90, height: 6, borderRadius: 2, border: "1px solid #232323", overflow: "hidden" }}>
-						<div className="burn-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${anteil * 100}%` }} />
-					</div>
+					<div className="druck-hb-track" style={{ flex: "0 0 90px", height: 6 }}><i style={{ width: `${anteil * 100}%`, background: farbe(z) }} /></div>
 				)}
-				<span className="mono" title={titel} style={{ flex: 1, minWidth: 120, fontSize: 9.5, color: "var(--dim)" }}>
-					{text(a.intervall)} · zuletzt {text(a.zuletzt) || "-"}
+				<span className="mono" title={titel || undefined} style={{ flex: 1, minWidth: 120, fontSize: 9.5, color: "var(--dim)" }}>
+					{z === "bedarf" ? text(a.hinweis) || text(a.intervall) : text(a.intervall)} · zuletzt {text(a.zuletzt) || "-"}
 				</span>
 				{ak !== undefined && (
 					<>
 						<button className="druck-btn" disabled={ak.laeuft} onClick={() => void ak.gewartet(id)}>✓ erledigt</button>
-						<button className="druck-btn" disabled={ak.laeuft} title="früheres Datum eintragen" onClick={() => setNachtrag((v) => !v)}>📅</button>
-						{a.rueckgaengig === true && <button className="druck-btn" disabled={ak.laeuft} onClick={() => void ak.gewartetZurueck(id)}>↶ rückgängig</button>}
+						<button className="druck-btn" disabled={ak.laeuft} title="früheres Datum eintragen" aria-label="früheres Datum eintragen" onClick={() => setNachtrag((v) => !v)}>📅</button>
+						{a.rueckgaengig === true && DATUM_ISO.test(rueckDatum) && <button className="druck-btn" disabled={ak.laeuft} onClick={() => void ak.gewartetZurueck(id, rueckDatum)}>↶ rückgängig</button>}
 					</>
 				)}
 				{anleitung.startsWith("https://") && <a className="druck-btn" href={anleitung} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>anleitung ↗</a>}
 			</div>
 			{nachtrag && ak !== undefined && (
 				<div style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 18 }}>
-					<input type="date" className="druck-select" max={heute} value={datum} onChange={(e) => setDatum(e.target.value)} />
+					<input type="date" className="druck-select" style={{ colorScheme: "dark" }} max={heute} value={datum} onChange={(e) => setDatum(e.target.value)} />
 					<button className="druck-btn" disabled={ak.laeuft || !datumOk} onClick={() => { setNachtrag(false); void ak.gewartet(id, datum); }}>eintragen</button>
 				</div>
 			)}
@@ -96,11 +95,11 @@ function Zeile({ a, aktionen }: { a: DruckWartungsAufgabe; aktionen?: WartungsAk
 
 function Umschalter({ offen, titel, onClick }: { offen: boolean; titel: string; onClick: () => void }): JSX.Element {
 	return (
-		<div style={{ display: "flex", alignItems: "center", cursor: "pointer", marginTop: 8 }} onClick={onClick}>
+		<button type="button" aria-expanded={offen} onClick={onClick} style={{ display: "flex", alignItems: "center", width: "100%", marginTop: 8, padding: 0, background: "transparent", border: "none", cursor: "pointer", font: "inherit", color: "inherit", textAlign: "left" }}>
 			<span className="mono small-caps" style={{ color: "var(--dim)", fontSize: 10, letterSpacing: ".12em" }}>{titel}</span>
 			<span style={{ flex: 1 }} />
 			<span className="mono small-caps" style={{ color: "var(--accent)", fontSize: 10 }}>{offen ? "▴ einklappen" : "aufklappen ▸"}</span>
-		</div>
+		</button>
 	);
 }
 
@@ -113,7 +112,7 @@ export function WartungsBlock({ wartung, aktionen }: { wartung: DruckWartung; ak
 	const sichtbar = alle.filter((a) => DRINGEND.has(zustandVon(a)) || a.rueckgaengig === true);
 	const ok = alle.filter((a) => zustandVon(a) === "ok" && a.rueckgaengig !== true);
 	const bedarf = alle.filter((a) => zustandVon(a) === "bedarf" && a.rueckgaengig !== true);
-	const schluessel = (a: DruckWartungsAufgabe, i: number): string => (text(a.id) !== "" ? text(a.id) : `#${i}`);
+	const schluessel = (a: DruckWartungsAufgabe, i: number): string => (WARTUNG_ID.test(text(a.id)) ? text(a.id) : `#${i}`);
 	const kopf = wartung.faellig > 0 || wartung.bald > 0
 		? `▲ wartung · ${wartung.faellig} fällig · ${wartung.bald} bald`
 		: alle.length > 0 ? "✓ wartung · nichts fällig" : "wartung · kein plan";

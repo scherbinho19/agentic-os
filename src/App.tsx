@@ -635,12 +635,12 @@ export function App(): JSX.Element {
 			}
 			return druckCli(["--gewartet", id, ...(datum !== undefined ? ["--datum", datum] : [])], `3D-Druck: Wartung eingetragen${datum !== undefined ? ` für ${datum}` : ""}`);
 		},
-		gewartetZurueck: (id) => {
-			if (!WARTUNG_ID.test(id)) {
-				new Notice("3D-Druck: ungültige Aufgabe, nichts zurückgenommen.", 5000);
+		gewartetZurueck: (id, datum) => {
+			if (!WARTUNG_ID.test(id) || !DATUM_ISO.test(datum)) {
+				new Notice("3D-Druck: ungültige Aufgabe oder ungültiges Datum, nichts zurückgenommen.", 5000);
 				return Promise.resolve();
 			}
-			return druckCli(["--gewartet-zurueck", id], "3D-Druck: Wartungseintrag zurückgenommen");
+			return druckCli(["--gewartet-zurueck", id, "--datum", datum], "3D-Druck: Wartungseintrag zurückgenommen");
 		},
 		terminal: (name, pfad) => { window.dispatchEvent(new CustomEvent("agentic-os:open-project", { detail: { cwd: pfad, name } })); },
 		claude: (name, p) => {

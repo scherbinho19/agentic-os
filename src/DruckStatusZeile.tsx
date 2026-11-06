@@ -6,7 +6,7 @@ import { UNGEPRUEFT, tageText, sortiert, materialText } from "./DruckView";
 /**
  * Eine Zeile in der ÜBERSICHT, direkt unter dem Briefing. Klick springt auf Tab 03.
  * Zeigt nur, was eine Handlung auslösen könnte: laufender Druck, ältestes ungeprüftes
- * Projekt, Nachkauf. Bei nicht gesundem Stand steht die Warnung an dieser Stelle.
+ * Projekt, fällige Wartung, Nachkauf. Bei nicht gesundem Stand steht die Warnung an dieser Stelle.
  */
 export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | null; onOpen: () => void }): JSX.Element {
 	const eff = effektivHealth(status);
@@ -32,8 +32,8 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 					? <>druckt <span style={{ color: "var(--accent)" }}>{materialText(l.materialien)}</span> {l.laeuft_minuten ?? "?"} min</>
 					: <span style={{ color: "var(--muted)" }}>kein Druck aktiv</span>}
 				{eintrag !== undefined && <> · <span style={{ color: "var(--accent)" }}>{eintrag[0]}</span>{eintrag[2] !== null ? ` seit ${tageText(eintrag[2])}` : ""} ungeprüft</>}
-				{knapp > 0 && <> · {knapp} nachkaufen</>}
 				{wartungFaellig > 0 && <> · <span style={{ color: "var(--accent)" }}>{wartungFaellig} {wartungFaellig === 1 ? "Wartung" : "Wartungen"} fällig</span></>}
+				{knapp > 0 && <> · {knapp} nachkaufen</>}
 			</>
 		);
 	}

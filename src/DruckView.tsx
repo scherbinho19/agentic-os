@@ -17,7 +17,7 @@ export interface DruckAktionen {
 	claude: (name: string, p: DruckProjekt) => void;
 	refresh: () => Promise<void>;
 	gewartet: (id: string, datum?: string) => Promise<void>;
-	gewartetZurueck: (id: string) => Promise<void>;
+	gewartetZurueck: (id: string, datum: string) => Promise<void>;
 	laeuft: boolean;
 }
 

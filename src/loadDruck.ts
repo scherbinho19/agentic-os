@@ -73,6 +73,7 @@ export interface DruckWartungsAufgabe {
 	intervall: string;
 	seit: string;
 	rueckgaengig: boolean;
+	rueckgaengig_datum: string | null;
 }
 
 /** Feld `wartung` aus status.json, berechnet von scripts/druck_wartung.py. */
@@ -172,10 +173,11 @@ export function normalisiereDruckStatus(raw: unknown): DruckStatus | null {
 	const wRoh: unknown = r.wartung;
 	const w: { aufgaben?: unknown; faellig?: unknown; bald?: unknown; befunde?: unknown } =
 		wRoh !== null && typeof wRoh === "object" && !Array.isArray(wRoh) ? (wRoh as Record<string, unknown>) : {};
+	const zaehler = (v: unknown): number => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : 0);
 	r.wartung = {
 		aufgaben: objektListe<DruckWartungsAufgabe>(w.aufgaben),
-		faellig: Number.isFinite(w.faellig) ? (w.faellig as number) : 0,
-		bald: Number.isFinite(w.bald) ? (w.bald as number) : 0,
+		faellig: zaehler(w.faellig),
+		bald: zaehler(w.bald),
 		befunde: stringListe(w.befunde),
 	};
 
