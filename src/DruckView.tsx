@@ -16,6 +16,8 @@ export interface DruckAktionen {
 	zuordnen: (taskId: string, projekt: string) => Promise<void>;
 	claude: (name: string, p: DruckProjekt) => void;
 	refresh: () => Promise<void>;
+	gewartet: (id: string, datum?: string) => Promise<void>;
+	gewartetZurueck: (id: string) => Promise<void>;
 	laeuft: boolean;
 }
 
@@ -344,7 +346,7 @@ export function DruckView({ status, aktionen }: { status: DruckStatus | null; ak
 			{effektivHealth(status) === "stale" && <RefreshKnopf aktionen={aktionen} />}
 			<Hero status={status} />
 			<Kennzahlen status={status} />
-			<WartungsBlock wartung={status.wartung} />
+			<WartungsBlock wartung={status.wartung} aktionen={aktionen} />
 			<div style={{ margin: "10px 18px 0", display: "grid", gridTemplateColumns: "240px 1fr", gap: 10 }}>
 				<ProjektListe status={status} sel={gewaehlt} onSel={setSel} />
 				<ProjektDetail status={status} name={gewaehlt} aktionen={aktionen} />
