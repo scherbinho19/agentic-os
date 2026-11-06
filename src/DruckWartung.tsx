@@ -95,7 +95,7 @@ function Zeile({ a, aktionen }: { a: DruckWartungsAufgabe; aktionen?: WartungsAk
 
 function Umschalter({ offen, titel, onClick }: { offen: boolean; titel: string; onClick: () => void }): JSX.Element {
 	return (
-		<button type="button" aria-expanded={offen} onClick={onClick} style={{ display: "flex", alignItems: "center", width: "100%", marginTop: 8, padding: 0, background: "transparent", border: "none", cursor: "pointer", font: "inherit", color: "inherit", textAlign: "left" }}>
+		<button type="button" className="druck-umschalter" aria-expanded={offen} onClick={onClick} style={{ display: "flex", alignItems: "center", width: "100%", marginTop: 8, padding: 0, background: "transparent", border: "none", cursor: "pointer", font: "inherit", color: "inherit", textAlign: "left" }}>
 			<span className="mono small-caps" style={{ color: "var(--dim)", fontSize: 10, letterSpacing: ".12em" }}>{titel}</span>
 			<span style={{ flex: 1 }} />
 			<span className="mono small-caps" style={{ color: "var(--accent)", fontSize: 10 }}>{offen ? "▴ einklappen" : "aufklappen ▸"}</span>
