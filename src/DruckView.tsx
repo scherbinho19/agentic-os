@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Icons } from "./icons";
 import { alterMinuten, effektivHealth, MAX_ALTER_MIN, type DruckStatus, type DruckProjekt, type DruckMaterial } from "./loadDruck";
 import { BestandBalken, QuoteRing, Sparkline, WochenBalken } from "./DruckCharts";
+import { WartungsBlock } from "./DruckWartung";
 
 /**
  * Tab [03] 3D-DRUCK. Rendert nur status.json. Aktionen kommen in Paket C über
@@ -343,6 +344,7 @@ export function DruckView({ status, aktionen }: { status: DruckStatus | null; ak
 			{effektivHealth(status) === "stale" && <RefreshKnopf aktionen={aktionen} />}
 			<Hero status={status} />
 			<Kennzahlen status={status} />
+			<WartungsBlock wartung={status.wartung} />
 			<div style={{ margin: "10px 18px 0", display: "grid", gridTemplateColumns: "240px 1fr", gap: 10 }}>
 				<ProjektListe status={status} sel={gewaehlt} onSel={setSel} />
 				<ProjektDetail status={status} name={gewaehlt} aktionen={aktionen} />

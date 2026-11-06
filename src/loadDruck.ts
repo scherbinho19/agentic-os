@@ -56,6 +56,33 @@ export interface DruckBestand {
 	knapp: boolean;
 }
 
+export interface DruckWartungsAufgabe {
+	id: string;
+	bereich: string;
+	aufgabe: string;
+	hinweis: string;
+	anleitung: string;
+	zustand: "faellig" | "nie" | "bald" | "ok" | "bedarf";
+	anteil: number | null;
+	treiber: "tage" | "stunden" | "kg" | null;
+	rest: string;
+	faellig_am: string | null;
+	geschaetzt: boolean;
+	zuletzt: string | null;
+	notiz: string;
+	intervall: string;
+	seit: string;
+	rueckgaengig: boolean;
+}
+
+/** Feld `wartung` aus status.json, berechnet von scripts/druck_wartung.py. */
+export interface DruckWartung {
+	aufgaben: DruckWartungsAufgabe[];
+	faellig: number;
+	bald: number;
+	befunde: string[];
+}
+
 export interface DruckStatus {
 	generated_at: string;
 	revision: number;
@@ -68,6 +95,7 @@ export interface DruckStatus {
 	befunde: string[];
 	serien: { wochen: Array<{ jahr: number; kw: number; gramm: number }>; quote: { fertig: number; fehlgeschlagen: number } };
 	backlog: string[];
+	wartung: DruckWartung;
 }
 
 /** Ab diesem Alter gilt ein Stand als veraltet, egal was health sagt. launchd kommt alle 5 min. */
@@ -137,6 +165,19 @@ export function normalisiereDruckStatus(raw: unknown): DruckStatus | null {
 		r.laufend = null;
 	}
 	r.slots ??= {};
+	// wartung kam mit dem Wartungs-Feature dazu. Ein älterer oder von Hand editierter Stand
+	// ohne das Feld bekommt eine leere Struktur, damit die View nie auf undefined liest. Wie
+	// bei den anderen Listen werden nur die Elemente als Objekte geprüft, ihre Felder guardet
+	// DruckWartung.tsx mit typeof.
+	const wRoh: unknown = r.wartung;
+	const w: { aufgaben?: unknown; faellig?: unknown; bald?: unknown; befunde?: unknown } =
+		wRoh !== null && typeof wRoh === "object" && !Array.isArray(wRoh) ? (wRoh as Record<string, unknown>) : {};
+	r.wartung = {
+		aufgaben: objektListe<DruckWartungsAufgabe>(w.aufgaben),
+		faellig: Number.isFinite(w.faellig) ? (w.faellig as number) : 0,
+		bald: Number.isFinite(w.bald) ? (w.bald as number) : 0,
+		befunde: stringListe(w.befunde),
+	};
 
 	return r as DruckStatus;
 }

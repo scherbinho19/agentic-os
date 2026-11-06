@@ -25,6 +25,7 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 		// das hier zu duplizieren. Erster Treffer = ältestes ungeprüftes Projekt.
 		const eintrag = sortiert(status.projekte).find(([, p]) => p.zustand !== null && UNGEPRUEFT.has(p.zustand));
 		const knapp = status.bestand.filter((b) => b.knapp).length;
+		const wartungFaellig = status.wartung.faellig;
 		text = (
 			<>
 				{l !== null
@@ -32,6 +33,7 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 					: <span style={{ color: "var(--muted)" }}>kein Druck aktiv</span>}
 				{eintrag !== undefined && <> · <span style={{ color: "var(--accent)" }}>{eintrag[0]}</span>{eintrag[2] !== null ? ` seit ${tageText(eintrag[2])}` : ""} ungeprüft</>}
 				{knapp > 0 && <> · {knapp} nachkaufen</>}
+				{wartungFaellig > 0 && <> · <span style={{ color: "var(--accent)" }}>{wartungFaellig} {wartungFaellig === 1 ? "Wartung" : "Wartungen"} fällig</span></>}
 			</>
 		);
 	}
