@@ -23,6 +23,7 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 		const laeufe = status.drucker.length > 0
 			? status.drucker.filter((d) => d.laufend !== null).map((d) => ({ name: d.name, l: d.laufend! }))
 			: status.laufend !== null ? [{ name: "", l: status.laufend }] : [];
+		const einer = laeufe[0];
 		// sortiert() aus DruckView.tsx macht die Absicherung gegen kaputte Projekt-
 		// Einträge und nicht-normalisierte letzter_druck-Werte bereits, kein Grund,
 		// das hier zu duplizieren. Erster Treffer = ältestes ungeprüftes Projekt.
@@ -31,9 +32,11 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 		const wartungFaellig = status.wartung.faellig;
 		text = (
 			<>
-				{laeufe.length > 0
-					? laeufe.map((x, i) => <React.Fragment key={i}>{i > 0 && " · "}{x.name !== "" && `${x.name} `}druckt <span style={{ color: "var(--accent)" }}>{materialText(x.l.materialien)}</span> {x.l.laeuft_minuten ?? "?"} min</React.Fragment>)
-					: <span style={{ color: "var(--muted)" }}>kein Druck aktiv</span>}
+				{einer !== undefined && laeufe.length === 1
+					? <>{einer.name !== "" && `${einer.name} `}druckt <span style={{ color: "var(--accent)" }}>{materialText(einer.l.materialien)}</span> {einer.l.laeuft_minuten ?? "?"} min</>
+					: laeufe.length > 1
+						? <>druckt {laeufe.map((x, i) => <React.Fragment key={i}>{i > 0 && " · "}<span style={{ color: "var(--accent)" }}>{x.name}</span> {x.l.laeuft_minuten ?? "?"} min</React.Fragment>)}</>
+						: <span style={{ color: "var(--muted)" }}>kein Druck aktiv</span>}
 				{eintrag !== undefined && <> · <span style={{ color: "var(--accent)" }}>{eintrag[0]}</span>{eintrag[2] !== null ? ` seit ${tageText(eintrag[2])}` : ""} ungeprüft</>}
 				{wartungFaellig > 0 && <> · <span style={{ color: "var(--accent)" }}>{wartungFaellig} {wartungFaellig === 1 ? "Wartung" : "Wartungen"} fällig</span></>}
 				{/* Plan fehlt oder ist kaputt: faellig ist dann 0, das darf die Statuszeile nicht als "nichts fällig" verschweigen. */}

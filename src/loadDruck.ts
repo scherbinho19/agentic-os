@@ -169,14 +169,20 @@ export function normalisiereDruckStatus(raw: unknown): DruckStatus | null {
 		const l = v as DruckLaufend & Record<string, unknown>;
 		l.materialien = objektListe<DruckMaterial>(l.materialien);
 		l.trays = stringListe(l.trays);
+		// Diese Felder landen direkt als React-Kind in der View, ein Objekt würde dort werfen.
+		const zahlOderNull = (x: unknown): number | null => (typeof x === "number" && Number.isFinite(x) ? x : null);
+		l.laeuft_minuten = zahlOderNull(l.laeuft_minuten);
+		if (l.uebernommen_seit_minuten !== undefined) l.uebernommen_seit_minuten = zahlOderNull(l.uebernommen_seit_minuten) ?? undefined;
+		l.task_id = typeof l.task_id === "string" ? l.task_id : null;
+		l.projekt_hinweis = typeof l.projekt_hinweis === "string" ? l.projekt_hinweis : "";
 		return l;
 	};
 	r.laufend = laufendVon(r.laufend);
 	// Alter Stand ohne `drucker`: genau ein Eintrag H2C. Ein leeres Array (Notfall-Snapshot) bleibt leer.
 	r.drucker = Array.isArray(r.drucker)
 		? objektListe<{ id?: unknown; name?: unknown; laufend?: unknown }>(r.drucker)
-			.filter((d) => typeof d.id === "string")
-			.map((d) => ({ id: d.id as string, name: typeof d.name === "string" ? d.name : (d.id as string).toUpperCase(), laufend: laufendVon(d.laufend) }))
+			.filter((d) => typeof d.id === "string" && d.id !== "")
+			.map((d) => ({ id: d.id as string, name: typeof d.name === "string" && d.name !== "" ? d.name : (d.id as string).toUpperCase(), laufend: laufendVon(d.laufend) }))
 		: [{ id: "h2c", name: "H2C", laufend: r.laufend }];
 	r.slots ??= {};
 	// wartung kam mit dem Wartungs-Feature dazu. Ein älterer oder von Hand editierter Stand

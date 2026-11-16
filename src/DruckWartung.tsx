@@ -113,17 +113,19 @@ export function WartungsBlock({ wartung, aktionen }: { wartung: DruckWartung; ak
 	const sichtbar = alle.filter((a) => DRINGEND.has(zustandVon(a)) || a.rueckgaengig === true);
 	const ok = alle.filter((a) => zustandVon(a) === "ok" && a.rueckgaengig !== true);
 	const bedarf = alle.filter((a) => zustandVon(a) === "bedarf" && a.rueckgaengig !== true);
-	// Keys tragen den Index in der Gesamtliste, damit sie über Gruppen hinweg eindeutig bleiben.
+	// Der Index im Rückfall gilt nur für ungültige IDs und ist der in der Gesamtliste.
 	const druckerVon = (a: DruckWartungsAufgabe): string => text(a.drucker) || "h2c";
-	// Gleiche Aufgaben-ID kann bei beiden Druckern vorkommen, deshalb steht der Drucker im Key.
+	// Wartungs-IDs sind laut Vertrag über beide Drucker eindeutig, der Drucker im Key ist nur Absicherung.
 	const schluessel = (a: DruckWartungsAufgabe): string => (WARTUNG_ID.test(text(a.id)) ? `${druckerVon(a)}:${text(a.id)}` : `#${alle.indexOf(a)}`);
 	const mehrere = new Set(alle.map(druckerVon)).size > 1;
 	const liste = (arr: DruckWartungsAufgabe[]): JSX.Element[] => {
 		const ids = [...new Set(arr.map(druckerVon))].sort((x, y) => (RANG[x] ?? 99) - (RANG[y] ?? 99));
-		return ids.flatMap((id) => [
-			...(mehrere ? [<div key={`kopf-${id}`} className="mono small-caps" style={{ fontSize: 10, color: "var(--dim)", letterSpacing: ".16em", marginTop: 8 }}>{id.toUpperCase()}</div>] : []),
-			...arr.filter((a) => druckerVon(a) === id).map((a) => <Zeile key={schluessel(a)} a={a} aktionen={aktionen} />),
-		]);
+		return ids.map((id) => (
+			<React.Fragment key={id}>
+				{mehrere && <div className="mono small-caps" style={{ fontSize: 10, color: "var(--dim)", letterSpacing: ".16em", marginTop: 8 }}>{id.toUpperCase()}</div>}
+				{arr.filter((a) => druckerVon(a) === id).map((a) => <Zeile key={schluessel(a)} a={a} aktionen={aktionen} />)}
+			</React.Fragment>
+		));
 	};
 	const kopf = wartung.faellig > 0 || wartung.bald > 0
 		? `▲ wartung · ${wartung.faellig} fällig · ${wartung.bald} bald`
