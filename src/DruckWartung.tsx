@@ -21,6 +21,7 @@ export interface WartungsAktionen {
 
 type Zustand = DruckWartungsAufgabe["zustand"];
 const DRINGEND: ReadonlySet<string> = new Set(["faellig", "nie", "bald"]);
+const RANG: Record<string, number> = { h2c: 0, h3c: 1 };
 const BEKANNT: ReadonlySet<string> = new Set(["faellig", "nie", "bald", "ok", "bedarf"]);
 const ZEICHEN: Record<Zustand, string> = { faellig: "●", nie: "●", bald: "◐", ok: "○", bedarf: "·" };
 
@@ -112,7 +113,18 @@ export function WartungsBlock({ wartung, aktionen }: { wartung: DruckWartung; ak
 	const sichtbar = alle.filter((a) => DRINGEND.has(zustandVon(a)) || a.rueckgaengig === true);
 	const ok = alle.filter((a) => zustandVon(a) === "ok" && a.rueckgaengig !== true);
 	const bedarf = alle.filter((a) => zustandVon(a) === "bedarf" && a.rueckgaengig !== true);
-	const schluessel = (a: DruckWartungsAufgabe, i: number): string => (WARTUNG_ID.test(text(a.id)) ? text(a.id) : `#${i}`);
+	// Keys tragen den Index in der Gesamtliste, damit sie über Gruppen hinweg eindeutig bleiben.
+	const druckerVon = (a: DruckWartungsAufgabe): string => text(a.drucker) || "h2c";
+	// Gleiche Aufgaben-ID kann bei beiden Druckern vorkommen, deshalb steht der Drucker im Key.
+	const schluessel = (a: DruckWartungsAufgabe): string => (WARTUNG_ID.test(text(a.id)) ? `${druckerVon(a)}:${text(a.id)}` : `#${alle.indexOf(a)}`);
+	const mehrere = new Set(alle.map(druckerVon)).size > 1;
+	const liste = (arr: DruckWartungsAufgabe[]): JSX.Element[] => {
+		const ids = [...new Set(arr.map(druckerVon))].sort((x, y) => (RANG[x] ?? 99) - (RANG[y] ?? 99));
+		return ids.flatMap((id) => [
+			...(mehrere ? [<div key={`kopf-${id}`} className="mono small-caps" style={{ fontSize: 10, color: "var(--dim)", letterSpacing: ".16em", marginTop: 8 }}>{id.toUpperCase()}</div>] : []),
+			...arr.filter((a) => druckerVon(a) === id).map((a) => <Zeile key={schluessel(a)} a={a} aktionen={aktionen} />),
+		]);
+	};
 	const kopf = wartung.faellig > 0 || wartung.bald > 0
 		? `▲ wartung · ${wartung.faellig} fällig · ${wartung.bald} bald`
 		: alle.length > 0 ? "✓ wartung · nichts fällig" : "wartung · kein plan";
@@ -123,11 +135,11 @@ export function WartungsBlock({ wartung, aktionen }: { wartung: DruckWartung; ak
 				<span style={{ flex: 1 }} />
 				<span className="mono" style={{ fontSize: 9.5, color: "var(--dim)" }}>plan: 3D-Druck/Wartungsplan.md</span>
 			</div>
-			{sichtbar.map((a, i) => <Zeile key={schluessel(a, i)} a={a} aktionen={aktionen} />)}
+			{liste(sichtbar)}
 			{ok.length > 0 && <Umschalter offen={okOffen} titel={`${ok.length} im plan, nicht fällig`} onClick={() => setOkOffen((v) => !v)} />}
-			{okOffen && ok.map((a, i) => <Zeile key={schluessel(a, i)} a={a} aktionen={aktionen} />)}
+			{okOffen && liste(ok)}
 			{bedarf.length > 0 && <Umschalter offen={bedarfOffen} titel={`bei bedarf · ${bedarf.length}`} onClick={() => setBedarfOffen((v) => !v)} />}
-			{bedarfOffen && bedarf.map((a, i) => <Zeile key={schluessel(a, i)} a={a} aktionen={aktionen} />)}
+			{bedarfOffen && liste(bedarf)}
 			{wartung.befunde.length > 0 && (
 				<div style={{ marginTop: 8 }}>
 					<span className="ctitle" style={{ color: "var(--accent)" }}>befunde in Wartungsplan.md oder wartung.json</span>

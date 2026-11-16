@@ -19,7 +19,10 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 		const grund = typeof status.health.grund === "string" ? status.health.grund : "";
 		text = <span style={{ color: "var(--accent)" }}>⚠ {eff}{eff === "stale" ? `: Stand vor ${alterMinuten(status) ?? "?"} min` : ""}{grund !== "" ? `, ${grund}` : ""}</span>;
 	} else {
-		const l = status.laufend;
+		// Pro Drucker mit Lauf ein Teil. Ohne drucker[] (leer) gilt das alte Verhalten mit status.laufend.
+		const laeufe = status.drucker.length > 0
+			? status.drucker.filter((d) => d.laufend !== null).map((d) => ({ name: d.name, l: d.laufend! }))
+			: status.laufend !== null ? [{ name: "", l: status.laufend }] : [];
 		// sortiert() aus DruckView.tsx macht die Absicherung gegen kaputte Projekt-
 		// Einträge und nicht-normalisierte letzter_druck-Werte bereits, kein Grund,
 		// das hier zu duplizieren. Erster Treffer = ältestes ungeprüftes Projekt.
@@ -28,8 +31,8 @@ export function DruckStatusZeile({ status, onOpen }: { status: DruckStatus | nul
 		const wartungFaellig = status.wartung.faellig;
 		text = (
 			<>
-				{l !== null
-					? <>druckt <span style={{ color: "var(--accent)" }}>{materialText(l.materialien)}</span> {l.laeuft_minuten ?? "?"} min</>
+				{laeufe.length > 0
+					? laeufe.map((x, i) => <React.Fragment key={i}>{i > 0 && " · "}{x.name !== "" && `${x.name} `}druckt <span style={{ color: "var(--accent)" }}>{materialText(x.l.materialien)}</span> {x.l.laeuft_minuten ?? "?"} min</React.Fragment>)
 					: <span style={{ color: "var(--muted)" }}>kein Druck aktiv</span>}
 				{eintrag !== undefined && <> · <span style={{ color: "var(--accent)" }}>{eintrag[0]}</span>{eintrag[2] !== null ? ` seit ${tageText(eintrag[2])}` : ""} ungeprüft</>}
 				{wartungFaellig > 0 && <> · <span style={{ color: "var(--accent)" }}>{wartungFaellig} {wartungFaellig === 1 ? "Wartung" : "Wartungen"} fällig</span></>}

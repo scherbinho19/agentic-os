@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Icons } from "./icons";
-import { alterMinuten, effektivHealth, MAX_ALTER_MIN, type DruckStatus, type DruckProjekt, type DruckMaterial } from "./loadDruck";
+import { alterMinuten, effektivHealth, MAX_ALTER_MIN, type DruckStatus, type DruckProjekt, type DruckMaterial, type DruckLaufend } from "./loadDruck";
 import { BestandBalken, QuoteRing, Sparkline, WochenBalken } from "./DruckCharts";
 import { WartungsBlock } from "./DruckWartung";
 
@@ -135,8 +135,28 @@ export function DruckBanner({ status }: { status: DruckStatus | null }): JSX.Ele
 	);
 }
 
+function Lauf({ l }: { l: DruckLaufend | null }): JSX.Element {
+	if (l === null) return <div style={{ fontSize: 13, color: "var(--muted)" }}>Kein Druck aktiv.</div>;
+	return (
+		<>
+			<div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+				<span className="mono tnum" style={{ fontSize: 34, color: "var(--accent)", fontWeight: 600, lineHeight: 1 }}>{l.laeuft_minuten ?? "?"}</span>
+				<span className="mono small-caps" style={{ fontSize: 9, color: "var(--dim)", letterSpacing: ".16em" }}>minuten</span>
+				<span style={{ fontSize: 12.5, color: "#f5f5f5" }}>{materialText(l.materialien)}</span>
+				<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>{l.trays.join(", ") || "-"} · task {l.task_id ?? "?"}</span>
+			</div>
+			{/* Annahme für den Fortschrittsbalken, ein Druck über 6 h klebt bei 100 %. Die echte Restzeit liefert der Tracker nicht. */}
+			<div className="hatch" style={{ position: "relative", height: 10, borderRadius: 3, border: "1px solid #232323", overflow: "hidden", marginTop: 10 }}>
+				<div className="burn-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (zahl(l.laeuft_minuten) / 360) * 100)}%` }} />
+			</div>
+			<div className="mono" style={{ fontSize: 9.5, color: "var(--dim)", marginTop: 6 }}>
+				{l.projekt_hinweis}{l.unbestaetigt === true ? " · UNBESTÄTIGT, siehe Warnung" : ""}{l.uebernommen === true ? ` · übernommener Wert, ${l.uebernommen_seit_minuten ?? "?"} min alt` : ""}
+			</div>
+		</>
+	);
+}
+
 function Hero({ status }: { status: DruckStatus }): JSX.Element {
-	const l = status.laufend;
 	const alter = alterMinuten(status);
 	return (
 		<div style={{ margin: "4px 18px 0", position: "relative" }}>
@@ -148,25 +168,12 @@ function Hero({ status }: { status: DruckStatus }): JSX.Element {
 						stand <span style={{ color: "var(--text)" }}>vor {alter ?? "?"}m</span> · rev {status.revision}
 					</span>
 				</div>
-				{l === null ? (
-					<div style={{ fontSize: 13, color: "var(--muted)" }}>Kein Druck aktiv.</div>
-				) : (
-					<>
-						<div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
-							<span className="mono tnum" style={{ fontSize: 34, color: "var(--accent)", fontWeight: 600, lineHeight: 1 }}>{l.laeuft_minuten ?? "?"}</span>
-							<span className="mono small-caps" style={{ fontSize: 9, color: "var(--dim)", letterSpacing: ".16em" }}>minuten</span>
-							<span style={{ fontSize: 12.5, color: "#f5f5f5" }}>{materialText(l.materialien)}</span>
-							<span className="mono" style={{ fontSize: 10, color: "var(--dim)" }}>{l.trays.join(", ") || "-"} · task {l.task_id ?? "?"}</span>
-						</div>
-						{/* Annahme für den Fortschrittsbalken, ein Druck über 6 h klebt bei 100 %. Die echte Restzeit liefert der Tracker nicht. */}
-						<div className="hatch" style={{ position: "relative", height: 10, borderRadius: 3, border: "1px solid #232323", overflow: "hidden", marginTop: 10 }}>
-							<div className="burn-fill" style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${Math.min(100, (zahl(l.laeuft_minuten) / 360) * 100)}%` }} />
-						</div>
-						<div className="mono" style={{ fontSize: 9.5, color: "var(--dim)", marginTop: 6 }}>
-							{l.projekt_hinweis}{l.unbestaetigt === true ? " · UNBESTÄTIGT, siehe Warnung" : ""}{l.uebernommen === true ? ` · übernommener Wert, ${l.uebernommen_seit_minuten ?? "?"} min alt` : ""}
-						</div>
-					</>
-				)}
+				{status.drucker.length === 0 ? <Lauf l={status.laufend} /> : status.drucker.map((d, i) => (
+					<div key={`${d.id}#${i}`} style={i > 0 ? { marginTop: 12, paddingTop: 12, borderTop: "1px solid #232323" } : undefined}>
+						<div className="mono small-caps" style={{ fontSize: 10, color: "var(--dim)", letterSpacing: ".16em", marginBottom: 6 }}>{d.name}</div>
+						<Lauf l={d.laufend} />
+					</div>
+				))}
 			</div>
 		</div>
 	);

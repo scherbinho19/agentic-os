@@ -21,6 +21,7 @@ export interface DruckEreignis {
 	projekt: string | null;
 	quelle: "zuordnung" | "eindeutig" | "mehrdeutig" | "kein_name" | "offen";
 	materialien: DruckMaterial[];
+	drucker?: string;
 }
 
 export interface DruckProjekt {
@@ -74,6 +75,7 @@ export interface DruckWartungsAufgabe {
 	seit: string;
 	rueckgaengig: boolean;
 	rueckgaengig_datum: string | null;
+	drucker?: string;
 }
 
 /** Feld `wartung` aus status.json, berechnet von scripts/druck_wartung.py. */
@@ -84,11 +86,15 @@ export interface DruckWartung {
 	befunde: string[];
 }
 
+/** Ein Drucker aus status.json (`drucker[]`), mit seinem laufenden Druck oder null. */
+export interface DruckDrucker { id: string; name: string; laufend: DruckLaufend | null }
+
 export interface DruckStatus {
 	generated_at: string;
 	revision: number;
 	health: { status: "ok" | "stale" | "error"; grund: string; quellen: Record<string, string | null>; letzte_gebuchte_task: string | null };
 	laufend: DruckLaufend | null;
+	drucker: DruckDrucker[];
 	projekte: Record<string, DruckProjekt>;
 	drucke: DruckEreignis[];
 	bestand: DruckBestand[];
@@ -157,14 +163,21 @@ export function normalisiereDruckStatus(raw: unknown): DruckStatus | null {
 			? (q as { fertig: number; fehlgeschlagen: number })
 			: { fertig: 0, fehlgeschlagen: 0 };
 	r.serien = { wochen: objektListe<{ jahr: number; kw: number; gramm: number }>(serien?.wochen), quote };
-	if (r.laufend !== null && r.laufend !== undefined && typeof r.laufend === "object" && !Array.isArray(r.laufend)) {
-		const l = r.laufend as DruckLaufend & Record<string, unknown>;
+	// Gleiche Absicherung für `laufend` und für jedes `drucker[i].laufend`.
+	const laufendVon = (v: unknown): DruckLaufend | null => {
+		if (v === null || v === undefined || typeof v !== "object" || Array.isArray(v)) return null;
+		const l = v as DruckLaufend & Record<string, unknown>;
 		l.materialien = objektListe<DruckMaterial>(l.materialien);
 		l.trays = stringListe(l.trays);
-		r.laufend = l;
-	} else {
-		r.laufend = null;
-	}
+		return l;
+	};
+	r.laufend = laufendVon(r.laufend);
+	// Alter Stand ohne `drucker`: genau ein Eintrag H2C. Ein leeres Array (Notfall-Snapshot) bleibt leer.
+	r.drucker = Array.isArray(r.drucker)
+		? objektListe<{ id?: unknown; name?: unknown; laufend?: unknown }>(r.drucker)
+			.filter((d) => typeof d.id === "string")
+			.map((d) => ({ id: d.id as string, name: typeof d.name === "string" ? d.name : (d.id as string).toUpperCase(), laufend: laufendVon(d.laufend) }))
+		: [{ id: "h2c", name: "H2C", laufend: r.laufend }];
 	r.slots ??= {};
 	// wartung kam mit dem Wartungs-Feature dazu. Ein älterer oder von Hand editierter Stand
 	// ohne das Feld bekommt eine leere Struktur, damit die View nie auf undefined liest. Wie
